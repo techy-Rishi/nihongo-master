@@ -18,6 +18,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.background
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -118,7 +119,10 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
         setContent {
             val context = LocalContext.current
             val prefs = remember { context.getSharedPreferences("nihongo_master", Context.MODE_PRIVATE) }
-            var darkTheme by remember { mutableStateOf(prefs.getBoolean("dark_mode", false)) }
+            val systemDark = isSystemInDarkTheme()
+            var darkTheme by remember {
+                mutableStateOf(if (prefs.contains("dark_mode")) prefs.getBoolean("dark_mode", false) else systemDark)
+            }
 
             NihongoMasterTheme(darkTheme = darkTheme) {
                 NihongoApp(
@@ -189,6 +193,7 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
         }
 
         tts?.stop()
+        lastRecognizedText = "" // clear stale "You said" text
         speechRecognizer?.destroy()
         speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this).apply {
             setRecognitionListener(object : RecognitionListener {
@@ -209,7 +214,15 @@ class MainActivity : ComponentActivity(), TextToSpeech.OnInitListener {
 
                 override fun onError(error: Int) {
                     isListeningState = false
-                    onResult("")
+                    when (error) {
+                        SpeechRecognizer.ERROR_NO_MATCH,
+                        SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> onResult("") // genuinely nothing heard
+                        else -> Toast.makeText(
+                            this@MainActivity,
+                            "Speech recognition error ($error). Internet / Google app check karein aur dobara try karein.",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
                 }
 
                 override fun onResults(results: Bundle?) {
@@ -304,7 +317,12 @@ fun NihongoApp(
     val prefs = remember { context.getSharedPreferences("nihongo_master", Context.MODE_PRIVATE) }
 
     var section by remember { mutableStateOf(AppSection.HOME) }
-    var selectedLevel by remember { mutableStateOf<JlptLevel?>(null) }
+    // Default = N5 (saved); "ALL" is stored as null
+    var selectedLevel by remember {
+        mutableStateOf<JlptLevel?>(
+            runCatching { JlptLevel.valueOf(prefs.getString("level", "N5") ?: "N5") }.getOrNull()
+        )
+    }
     var xp by remember { mutableIntStateOf(prefs.getInt("xp", 0)) }
     val streak = remember { updateStreak(prefs) }
 
@@ -325,10 +343,11 @@ fun NihongoApp(
         srsStates = nextMap
         saveSrsMap(prefs, nextMap)
 
-        val nextMastered = if (grade == SrsGrade.GOOD || grade == SrsGrade.EASY) {
-            masteredIds + itemId
-        } else {
-            masteredIds - itemId
+        // "Mastered" = remembered well AND interval already >= 7 days (not just one "Good")
+        val nextMastered = when {
+            grade == SrsGrade.AGAIN || grade == SrsGrade.HARD -> masteredIds - itemId
+            updatedCard.intervalDays >= 7 -> masteredIds + itemId
+            else -> masteredIds
         }
         masteredIds = nextMastered
         prefs.edit().putStringSet("mastered", nextMastered).apply()
@@ -433,7 +452,10 @@ fun NihongoApp(
         ) {
             LevelFilterHeader(
                 selected = selectedLevel,
-                onSelect = { selectedLevel = it }
+                onSelect = {
+                    selectedLevel = it
+                    prefs.edit().putString("level", it?.name ?: "ALL").apply()
+                }
             )
 
             Box(modifier = Modifier.weight(1f)) {
@@ -444,7 +466,7 @@ fun NihongoApp(
                             streak = streak,
                             level = selectedLevel,
                             srsStates = srsStates,
-                            masteredCount = masteredIds.size,
+                            masteredIds = masteredIds,
                             onGradeSrs = ::handleSrsGrade,
                             onNavigate = { section = it },
                             onSpeak = onSpeak

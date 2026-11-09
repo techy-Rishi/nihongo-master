@@ -266,11 +266,18 @@ data class SrsCardState(
     val intervalDays: Int = 0,
     val repetitions: Int = 0,
     val easeFactor: Float = 2.5f,
-    val dueEpochDay: Long = 0L
+    val dueEpochDay: Long = 0L,
+    val firstSeenDay: Long = -1L // day this card was first reviewed (for daily new-card limit)
 )
 
 object SrsEngine {
-    fun currentEpochDay(): Long = System.currentTimeMillis() / 86_400_000L
+    /** Local-timezone day number (UTC version flipped the day at 5:30 AM IST). */
+    fun currentEpochDay(): Long {
+        val now = System.currentTimeMillis()
+        return (now + java.util.TimeZone.getDefault().getOffset(now)) / 86_400_000L
+    }
+
+    const val NEW_CARDS_PER_DAY = 15
 
     fun review(card: SrsCardState, grade: SrsGrade, today: Long = currentEpochDay()): SrsCardState {
         val q = grade.rating
@@ -296,12 +303,14 @@ object SrsEngine {
             intervalDays = nextInterval,
             repetitions = nextRep,
             easeFactor = nextEase,
-            dueEpochDay = today + nextInterval
+            // AGAIN -> stays due today (re-shown this session); otherwise due after interval
+            dueEpochDay = if (q < 3) today else today + nextInterval,
+            firstSeenDay = if (card.firstSeenDay < 0) today else card.firstSeenDay
         )
     }
 
     fun serialize(card: SrsCardState): String =
-        "${card.itemId}|${card.intervalDays}|${card.repetitions}|${card.easeFactor}|${card.dueEpochDay}"
+        "${card.itemId}|${card.intervalDays}|${card.repetitions}|${card.easeFactor}|${card.dueEpochDay}|${card.firstSeenDay}"
 
     fun deserialize(raw: String): SrsCardState? {
         val parts = raw.split("|")
@@ -312,7 +321,8 @@ object SrsEngine {
                 intervalDays = parts[1].toInt(),
                 repetitions = parts[2].toInt(),
                 easeFactor = parts[3].toFloat(),
-                dueEpochDay = parts[4].toLong()
+                dueEpochDay = parts[4].toLong(),
+                firstSeenDay = parts.getOrNull(5)?.toLong() ?: -1L
             )
         } catch (_: Exception) {
             null
@@ -381,8 +391,7 @@ object PronunciationEvaluator {
 
         val candidates = listOf(
             normalize(targetKanji),
-            normalize(targetKana),
-            normalize(targetRomaji)
+            normalize(targetKana)
         ).filter { it.isNotEmpty() }
 
         val bestScore = candidates.maxOfOrNull { target ->
@@ -395,8 +404,8 @@ object PronunciationEvaluator {
         } ?: 0
 
         val (title, detail) = when {
-            bestScore >= 90 -> "परफेक्ट उच्चारण! (Native-like Pitch & Clarity)" to
-                "शानदार! आपका उच्चारण बिल्कुल सटीक है।"
+            bestScore >= 90 -> "परफेक्ट! शब्द सही पहचाना गया" to
+                "शानदार! (नोट: यह सिर्फ़ शब्द का मिलान जाँचता है, Pitch नहीं — Pitch ग्राफ़ से खुद मिलाएँ।)"
             bestScore >= 75 -> "बहुत बढ़िया! (Great Attempt)" to
                 "काफी हद तक सही है। Pitch Accent ग्राफ़ देखकर एक बार और अभ्यास करें।"
             bestScore >= 50 -> "करीब हैं! (Getting Closer)" to
@@ -497,9 +506,11 @@ object VerbConjugator {
                 val te = stems[4]
                 val ta = stems[5]
 
+                // ある is irregular: negative is ない (not あらない)
+                val neg = if (t == "ある" || t == "有る" || t == "在る") "ない" else base + a + "ない"
                 listOf(
                     base + i + "ます",
-                    base + a + "ない",
+                    neg,
                     base + te,
                     base + ta,
                     base + i + "たい",
@@ -532,7 +543,7 @@ object VerbConjugator {
         )
         val hints = listOf(
             "Formal daily conversation (विनम्र भाषा)",
-            "Plain negative (नहीं करता / मत करो)",
+            "Plain negative (नहीं करता)",
             "Connect actions, requests (〜てください) & 〜ている",
             "Plain past tense (किया / गया)",
             "Express personal wish (करना चाहता हूँ)",
