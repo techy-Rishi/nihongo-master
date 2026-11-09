@@ -9,8 +9,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -48,7 +46,7 @@ fun WritingLabScreen(
             return
         }
 
-        val k = selectedKanji!!
+        val kItem = selectedKanji!!
 
         Card(
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -57,31 +55,39 @@ fun WritingLabScreen(
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(modifier = Modifier.padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                LevelBadge(k.level, "Strokes: ${k.strokeCount}")
+                Surface(color = Color(kItem.level.color), shape = RoundedCornerShape(8.dp)) {
+                    Text(
+                        "${kItem.level.label} • Strokes: ${kItem.strokeCount}",
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 12.sp,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                    )
+                }
                 Spacer(Modifier.height(10.dp))
-                Text(k.kanji, fontSize = 72.sp, fontWeight = FontWeight.ExtraBold)
+                Text(kItem.kanji, fontSize = 72.sp, fontWeight = FontWeight.ExtraBold)
                 Spacer(Modifier.height(6.dp))
-                Text("${k.meaningEn} • ${k.meaningHi}", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color(0xFF047857))
+                Text("${kItem.meaningEn} • ${kItem.meaningHi}", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color(0xFF047857))
                 Spacer(Modifier.height(10.dp))
 
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceAround) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text("Onyomi (Chinese)", fontSize = 11.sp, color = Color.Gray)
-                        Text(k.onyomi, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        Text(kItem.onyomi, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                     }
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text("Kunyomi (Japanese)", fontSize = 11.sp, color = Color.Gray)
-                        Text(k.kunyomi, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        Text(kItem.kunyomi, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                     }
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text("Radical (部首)", fontSize = 11.sp, color = Color.Gray)
-                        Text(k.radical, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        Text(kItem.radical, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                     }
                 }
 
                 Spacer(Modifier.height(12.dp))
                 Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = RoundedCornerShape(10.dp), modifier = Modifier.fillMaxWidth()) {
-                    Text("💡 Mnemonic: ${k.mnemonic}", modifier = Modifier.padding(12.dp), fontSize = 13.sp, fontWeight = FontWeight.SemiWordBreak)
+                    Text("💡 Mnemonic: ${kItem.mnemonic}", modifier = Modifier.padding(12.dp), fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                 }
 
                 Spacer(Modifier.height(14.dp))
@@ -99,7 +105,7 @@ fun WritingLabScreen(
         LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             items(kanjiPool) { item ->
                 Card(
-                    colors = CardDefaults.cardColors(containerColor = if (item.kanji == k.kanji) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface),
+                    colors = CardDefaults.cardColors(containerColor = if (item.kanji == kItem.kanji) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface),
                     shape = RoundedCornerShape(12.dp),
                     modifier = Modifier.fillMaxWidth().clickable { selectedKanji = item }
                 ) {
@@ -115,7 +121,15 @@ fun WritingLabScreen(
                                 Text("Strokes: ${item.strokeCount} · ${item.radical}", fontSize = 11.sp, color = Color.Gray)
                             }
                         }
-                        LevelBadge(item.level)
+                        Surface(color = Color(item.level.color), shape = RoundedCornerShape(8.dp)) {
+                            Text(
+                                item.level.label,
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.sp,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                            )
+                        }
                     }
                 }
             }
@@ -124,7 +138,7 @@ fun WritingLabScreen(
 
     if (showCanvas) {
         KanjiCanvasDialog(
-            kanjiItem = k,
+            kanjiItem = kItem,
             onDismiss = { showCanvas = false },
             onComplete = {
                 onAwardXp(20)
