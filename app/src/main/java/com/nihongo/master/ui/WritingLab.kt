@@ -230,7 +230,7 @@ fun KanjiCanvasDialog(kanjiItem: KanjiItem, onDismiss: () -> Unit, onComplete: (
             }
         },
         confirmButton = {
-            Button(onClick = onComplete) { Text("Finish (+20 XP)") }
+            Button(onClick = onComplete, enabled = strokes.isNotEmpty()) { Text("Finish (+20 XP)") }
         }
     )
 }

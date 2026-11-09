@@ -32,12 +32,12 @@ fun GrammarLabScreen(
             Button(
                 onClick = { subTab = 0 },
                 modifier = Modifier.weight(1f),
-                colors = ButtonDefaults.buttonColors(containerColor = if (subTab == 0) MaterialTheme.colorScheme.primary else Color.Gray)
+                colors = subTabColors(subTab == 0)
             ) { Text("📖 Grammar & Particles") }
             Button(
                 onClick = { subTab = 1 },
                 modifier = Modifier.weight(1f),
-                colors = ButtonDefaults.buttonColors(containerColor = if (subTab == 1) MaterialTheme.colorScheme.primary else Color.Gray)
+                colors = subTabColors(subTab == 1)
             ) { Text("⚙️ 10-Form Conjugator") }
         }
 

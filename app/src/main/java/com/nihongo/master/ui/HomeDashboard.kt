@@ -36,7 +36,7 @@ fun HomeDashboardScreen(
     streak: Int,
     level: JlptLevel?,
     srsStates: Map<String, SrsCardState>,
-    masteredCount: Int,
+    masteredIds: Set<String>,
     onGradeSrs: (String, SrsGrade) -> Unit,
     onNavigate: (AppSection) -> Unit,
     onSpeak: (String, ListeningSpeed) -> Unit
@@ -44,16 +44,19 @@ fun HomeDashboardScreen(
     val today = SrsEngine.currentEpochDay()
     val vocabPool = remember(level) { if (level == null) DataRepository.vocab else DataRepository.words(level) }
     val dueCards = remember(vocabPool, srsStates) {
-        vocabPool.filter { w ->
-            val card = srsStates[w.id]
-            card == null || card.dueEpochDay <= today
-        }
+        // reviews that are due + only a limited number of NEW cards per day
+        val reviews = vocabPool.filter { w -> srsStates[w.id]?.let { it.dueEpochDay <= today } == true }
+        val newToday = srsStates.values.count { it.firstSeenDay == today }
+        val newAllowed = (SrsEngine.NEW_CARDS_PER_DAY - newToday).coerceAtLeast(0)
+        val fresh = vocabPool.filter { srsStates[it.id] == null }.take(newAllowed)
+        reviews + fresh
     }
+    val masteredInPool = vocabPool.count { it.id in masteredIds }
     var activeSrsIndex by remember(dueCards) { mutableIntStateOf(0) }
     var showSrsAnswer by remember(dueCards) { mutableStateOf(false) }
 
-    val spotlight = remember { DataRepository.vocab.random() }
-    val totalVocab = DataRepository.vocab.size.coerceAtLeast(1)
+    val spotlight = remember { DataRepository.vocab.randomOrNull() }
+    val totalVocab = vocabPool.size.coerceAtLeast(1)
 
     LazyColumn(
         modifier = Modifier
@@ -83,10 +86,10 @@ fun HomeDashboardScreen(
                         }
                     }
                     Spacer(Modifier.height(14.dp))
-                    Text("Mastered: $masteredCount / $totalVocab words", color = MaterialTheme.colorScheme.onPrimaryContainer, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    Text("Mastered: $masteredInPool / $totalVocab words", color = MaterialTheme.colorScheme.onPrimaryContainer, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                     Spacer(Modifier.height(6.dp))
                     LinearProgressIndicator(
-                        progress = { (masteredCount.toFloat() / totalVocab).coerceIn(0f, 1f) },
+                        progress = { (masteredInPool.toFloat() / totalVocab).coerceIn(0f, 1f) },
                         modifier = Modifier.fillMaxWidth().height(8.dp).clip(CircleShape),
                         color = MaterialTheme.colorScheme.primary,
                         trackColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.4f)
@@ -150,7 +153,7 @@ fun HomeDashboardScreen(
                                         onClick = {
                                             onGradeSrs(cardWord.id, grade)
                                             showSrsAnswer = false
-                                            if (activeSrsIndex >= dueCards.size - 1) activeSrsIndex = 0
+                                            activeSrsIndex = 0
                                         },
                                         colors = ButtonDefaults.buttonColors(containerColor = Color(grade.colorHex)),
                                         modifier = Modifier.weight(1f),
@@ -180,7 +183,8 @@ fun HomeDashboardScreen(
             }
         }
 
-        // 4. Word Spotlight
+        // 4. Word Spotlight (skipped if vocab is empty)
+        if (spotlight != null) {
         item {
             Card(
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -201,6 +205,7 @@ fun HomeDashboardScreen(
                     Text(spotlight.exEn, fontSize = 12.sp, color = Color.Gray)
                 }
             }
+        }
         }
     }
 }

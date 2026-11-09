@@ -39,12 +39,12 @@ fun SpeakingLabScreen(
             Button(
                 onClick = { subTab = 0 },
                 modifier = Modifier.weight(1f),
-                colors = ButtonDefaults.buttonColors(containerColor = if (subTab == 0) MaterialTheme.colorScheme.primary else Color.Gray)
+                colors = subTabColors(subTab == 0)
             ) { Text("📈 Pitch & Shadow") }
             Button(
                 onClick = { subTab = 1 },
                 modifier = Modifier.weight(1f),
-                colors = ButtonDefaults.buttonColors(containerColor = if (subTab == 1) MaterialTheme.colorScheme.primary else Color.Gray)
+                colors = subTabColors(subTab == 1)
             ) { Text("🎭 Roleplay Scenarios") }
         }
 
@@ -77,8 +77,12 @@ fun ShadowingLabView(
     onAwardXp: (Int) -> Unit
 ) {
     val pool = remember(level) { if (level == null) DataRepository.vocab else DataRepository.words(level) }
+    if (pool.isEmpty()) {
+        Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) { Text("No words found for this level.") }
+        return
+    }
     var currentIndex by remember(pool) { mutableIntStateOf(0) }
-    val word = pool.getOrElse(currentIndex) { DataRepository.vocab.first() }
+    val word = pool[currentIndex.coerceIn(0, pool.lastIndex)]
 
     var evalResult by remember(word) { mutableStateOf<PronunciationResult?>(null) }
 
@@ -92,7 +96,7 @@ fun ShadowingLabView(
                 Text("Word ${currentIndex + 1} / ${pool.size}", fontWeight = FontWeight.Bold, color = Color.Gray)
                 Surface(color = Color(word.level.color), shape = RoundedCornerShape(8.dp)) {
                     Text(
-                        "${word.level.label} • ${word.pitchType.label}",
+                        "${word.level.label} • ${word.pitchType.label}${if (word.pitchDropIndex < 0) " ~est." else ""}",
                         color = Color.White,
                         fontWeight = FontWeight.Bold,
                         fontSize = 12.sp,
@@ -143,6 +147,7 @@ fun ShadowingLabView(
                                 )
                                 Spacer(Modifier.height(6.dp))
                                 Text(pm.mora, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
+                                if (pm.hasDropAfter) Text("↘", fontSize = 14.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
                             }
                         }
                     }
@@ -206,7 +211,10 @@ fun ShadowingLabView(
         evalResult?.let { res ->
             item {
                 Card(
-                    colors = CardDefaults.cardColors(containerColor = if (res.isPassed) Color(0xFFD1FAE5) else Color(0xFFFEE2E2)),
+                    colors = CardDefaults.cardColors(
+                        containerColor = if (res.isPassed) Color(0xFFD1FAE5) else Color(0xFFFEE2E2),
+                        contentColor = OnPastel
+                    ),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(modifier = Modifier.padding(14.dp)) {
@@ -241,6 +249,7 @@ fun ShadowingLabView(
 @Composable
 fun RoleplayLabView(onSpeak: (String, ListeningSpeed) -> Unit, onAwardXp: (Int) -> Unit) {
     var selectedScenario by remember { mutableStateOf(DataRepository.roleplayScenarios.first()) }
+    var completed by remember { mutableStateOf(setOf<String>()) } // XP only once per scenario
 
     LazyColumn(
         modifier = Modifier.fillMaxWidth(),
@@ -274,7 +283,10 @@ fun RoleplayLabView(onSpeak: (String, ListeningSpeed) -> Unit, onAwardXp: (Int) 
 
         items(selectedScenario.lines) { line ->
             Card(
-                colors = CardDefaults.cardColors(containerColor = if (line.isUserRole) Color(0xFFEFF6FF) else MaterialTheme.colorScheme.surface),
+                colors = CardDefaults.cardColors(
+                    containerColor = if (line.isUserRole) Color(0xFFEFF6FF) else MaterialTheme.colorScheme.surface,
+                    contentColor = if (line.isUserRole) OnPastel else MaterialTheme.colorScheme.onSurface
+                ),
                 shape = RoundedCornerShape(12.dp),
                 modifier = Modifier.fillMaxWidth().clickable { onSpeak(line.jp, ListeningSpeed.NATURAL) }
             ) {
@@ -293,10 +305,15 @@ fun RoleplayLabView(onSpeak: (String, ListeningSpeed) -> Unit, onAwardXp: (Int) 
         }
 
         item {
+            val alreadyDone = selectedScenario.id in completed
             Button(
-                onClick = { onAwardXp(25) },
+                onClick = {
+                    completed = completed + selectedScenario.id
+                    onAwardXp(25)
+                },
+                enabled = !alreadyDone,
                 modifier = Modifier.fillMaxWidth()
-            ) { Text("🎉 Complete Roleplay (+25 XP)") }
+            ) { Text(if (alreadyDone) "✅ Completed" else "🎉 Complete Roleplay (+25 XP)") }
         }
     }
 }

@@ -1,6 +1,8 @@
 package com.nihongo.master.ui
 
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.material3.ButtonColors
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
@@ -60,3 +62,15 @@ fun NihongoMasterTheme(
         content = content
     )
 }
+
+/** Sub-tab buttons: selected = primary, unselected = readable tonal (not "disabled grey"). */
+@Composable
+fun subTabColors(selected: Boolean): ButtonColors =
+    if (selected) ButtonDefaults.buttonColors()
+    else ButtonDefaults.buttonColors(
+        containerColor = MaterialTheme.colorScheme.secondaryContainer,
+        contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+    )
+
+/** Dark text for cards that use fixed light pastel backgrounds (works in dark mode too). */
+val OnPastel = Color(0xFF0F172A)

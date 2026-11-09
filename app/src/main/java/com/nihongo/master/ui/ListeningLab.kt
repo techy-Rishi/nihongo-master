@@ -33,12 +33,12 @@ fun ListeningLabScreen(
             Button(
                 onClick = { subTab = 0 },
                 modifier = Modifier.weight(1f),
-                colors = ButtonDefaults.buttonColors(containerColor = if (subTab == 0) MaterialTheme.colorScheme.primary else Color.Gray)
+                colors = subTabColors(subTab == 0)
             ) { Text("🎧 Spoken Contractions") }
             Button(
                 onClick = { subTab = 1 },
                 modifier = Modifier.weight(1f),
-                colors = ButtonDefaults.buttonColors(containerColor = if (subTab == 1) MaterialTheme.colorScheme.primary else Color.Gray)
+                colors = subTabColors(subTab == 1)
             ) { Text("📝 Dictation Quiz") }
         }
 
@@ -170,7 +170,10 @@ fun DictationQuizView(level: JlptLevel?, onSpeak: (String, ListeningSpeed) -> Un
             }
 
             Card(
-                colors = CardDefaults.cardColors(containerColor = bg),
+                colors = CardDefaults.cardColors(
+                    containerColor = bg,
+                    contentColor = if (selected != null && (isCorrect || isSelected)) OnPastel else MaterialTheme.colorScheme.onSurface
+                ),
                 shape = RoundedCornerShape(12.dp),
                 modifier = Modifier.fillMaxWidth().clickable(enabled = selected == null) {
                     selected = idx
@@ -187,7 +190,7 @@ fun DictationQuizView(level: JlptLevel?, onSpeak: (String, ListeningSpeed) -> Un
 
         if (selected != null) {
             item {
-                Card(colors = CardDefaults.cardColors(containerColor = Color(0xFFEFF6FF)), modifier = Modifier.fillMaxWidth()) {
+                Card(colors = CardDefaults.cardColors(containerColor = Color(0xFFEFF6FF), contentColor = OnPastel), modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.padding(12.dp)) {
                         Text(if (selected == q.correctIndex) "✅ Correct! (+15 XP)" else "❌ Incorrect", fontWeight = FontWeight.ExtraBold)
                         Text(q.explanation, fontSize = 12.sp)
