@@ -90,7 +90,15 @@ fun ShadowingLabView(
         item {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Text("Word ${currentIndex + 1} / ${pool.size}", fontWeight = FontWeight.Bold, color = Color.Gray)
-                LevelBadge(word.level, word.pitchType.label)
+                Surface(color = Color(word.level.color), shape = RoundedCornerShape(8.dp)) {
+                    Text(
+                        "${word.level.label} • ${word.pitchType.label}",
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 12.sp,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                    )
+                }
             }
         }
 
