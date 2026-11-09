@@ -46,7 +46,7 @@ fun WritingLabScreen(
             return
         }
 
-        val kItem = selectedKanji!!
+        val currentKanji = selectedKanji!!
 
         Card(
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -55,9 +55,9 @@ fun WritingLabScreen(
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(modifier = Modifier.padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                Surface(color = Color(kItem.level.color), shape = RoundedCornerShape(8.dp)) {
+                Surface(color = Color(currentKanji.level.color), shape = RoundedCornerShape(8.dp)) {
                     Text(
-                        "${kItem.level.label} • Strokes: ${kItem.strokeCount}",
+                        "${currentKanji.level.label} • Strokes: ${currentKanji.strokeCount}",
                         color = Color.White,
                         fontWeight = FontWeight.Bold,
                         fontSize = 12.sp,
@@ -65,29 +65,29 @@ fun WritingLabScreen(
                     )
                 }
                 Spacer(Modifier.height(10.dp))
-                Text(kItem.kanji, fontSize = 72.sp, fontWeight = FontWeight.ExtraBold)
+                Text(currentKanji.kanji, fontSize = 72.sp, fontWeight = FontWeight.ExtraBold)
                 Spacer(Modifier.height(6.dp))
-                Text("${kItem.meaningEn} • ${kItem.meaningHi}", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color(0xFF047857))
+                Text("${currentKanji.meaningEn} • ${currentKanji.meaningHi}", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color(0xFF047857))
                 Spacer(Modifier.height(10.dp))
 
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceAround) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text("Onyomi (Chinese)", fontSize = 11.sp, color = Color.Gray)
-                        Text(kItem.onyomi, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        Text(currentKanji.onyomi, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                     }
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text("Kunyomi (Japanese)", fontSize = 11.sp, color = Color.Gray)
-                        Text(kItem.kunyomi, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        Text(currentKanji.kunyomi, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                     }
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text("Radical (部首)", fontSize = 11.sp, color = Color.Gray)
-                        Text(kItem.radical, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        Text(currentKanji.radical, fontWeight = FontWeight.Bold, fontSize = 14.sp)
                     }
                 }
 
                 Spacer(Modifier.height(12.dp))
                 Surface(color = MaterialTheme.colorScheme.surfaceVariant, shape = RoundedCornerShape(10.dp), modifier = Modifier.fillMaxWidth()) {
-                    Text("💡 Mnemonic: ${kItem.mnemonic}", modifier = Modifier.padding(12.dp), fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    Text("💡 Mnemonic: ${currentKanji.mnemonic}", modifier = Modifier.padding(12.dp), fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                 }
 
                 Spacer(Modifier.height(14.dp))
@@ -105,7 +105,7 @@ fun WritingLabScreen(
         LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             items(kanjiPool) { item ->
                 Card(
-                    colors = CardDefaults.cardColors(containerColor = if (item.kanji == kItem.kanji) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface),
+                    colors = CardDefaults.cardColors(containerColor = if (item.kanji == currentKanji.kanji) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface),
                     shape = RoundedCornerShape(12.dp),
                     modifier = Modifier.fillMaxWidth().clickable { selectedKanji = item }
                 ) {
@@ -138,7 +138,7 @@ fun WritingLabScreen(
 
     if (showCanvas) {
         KanjiCanvasDialog(
-            kanjiItem = kItem,
+            kanjiItem = currentKanji,
             onDismiss = { showCanvas = false },
             onComplete = {
                 onAwardXp(20)
