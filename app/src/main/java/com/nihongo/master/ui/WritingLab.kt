@@ -36,17 +36,17 @@ fun WritingLabScreen(
     var selectedKanji by remember(kanjiPool) { mutableStateOf(kanjiPool.firstOrNull()) }
     var showCanvas by remember { mutableStateOf(false) }
 
+    val currentKanji = selectedKanji ?: kanjiPool.firstOrNull()
+
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         Text("✍️ Kanji Writing & Stroke Order Lab", fontWeight = FontWeight.ExtraBold, fontSize = 16.sp)
         Text("Master radical breakdowns, stroke counts, and touch drawing", fontSize = 12.sp, color = Color.Gray)
         Spacer(Modifier.height(12.dp))
 
-        if (selectedKanji == null) {
+        if (currentKanji == null) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("No Kanji found.") }
             return
         }
-
-        val currentKanji = selectedKanji!!
 
         Card(
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
