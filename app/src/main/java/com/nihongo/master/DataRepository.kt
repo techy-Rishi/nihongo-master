@@ -2,373 +2,451 @@ package com.nihongo.master
 
 object DataRepository {
 
-    // Complete 104 Hiragana + 104 Katakana + Confusion Traps = 216 Kana Items
-    val allKana: List<KanaChar> by lazy {
-        val list = mutableListOf<KanaChar>()
+    private fun ws(s: String): List<String> = s.trim().split(Regex("\\s+"))
 
-        val gojuonRows = listOf(
-            "A-Row" to listOf(Triple("あ", "ア", "a") to "Apple / Axe", Triple("い", "イ", "i") to "Two eels / Easel", Triple("う", "ウ", "u") to "U-curve / Roof", Triple("え", "エ", "e") to "Exotic bird / Elevator", Triple("お", "オ", "o") to "Golf ball / Opera singer"),
-            "KA-Row" to listOf(Triple("か", "カ", "ka") to "Cutting blade", Triple("き", "キ", "ki") to "Skeleton Key", Triple("く", "ク", "ku") to "Cuckoo beak / Cook hat", Triple("け", "ケ", "ke") to "Wooden Keg", Triple("こ", "コ", "ko") to "Two Koi fish / Two Corners"),
-            "SA-Row" to listOf(Triple("さ", "サ", "sa") to "Sake pourer / Sardines", Triple("し", "シ", "shi") to "Fishhook / Sideways smile", Triple("す", "ス", "su") to "Swing loop / Ski jumper", Triple("せ", "セ", "se") to "Seat bench", Triple("そ", "ソ", "so") to "Zigzag sewing / Needle drop"),
-            "TA-Row" to listOf(Triple("た", "タ", "ta") to "Ta cross / Taco", Triple("ち", "チ", "chi") to "Cheerleader 5", Triple("つ", "ツ", "tsu") to "Tsunami wave / Three drops", Triple("て", "テ", "te") to "Telescope / Telephone pole", Triple("と", "ト", "to") to "Toe splinter / Totem pole"),
-            "NA-Row" to listOf(Triple("な", "ナ", "na") to "Nun praying / Nutcracker", Triple("に", "ニ", "ni") to "Needle & thread / Two lines", Triple("ぬ", "ヌ", "nu") to "Noodles loop / Chopsticks", Triple("ね", "ネ", "ne") to "Neko cat tail / Necktie", Triple("の", "ノ", "no") to "No-smoking sign / Slash"),
-            "HA-Row" to listOf(Triple("は", "ハ", "ha") to "H+a / House roof", Triple("ひ", "ヒ", "hi") to "Smiling 'hee' / Boot heel", Triple("ふ", "フ", "fu") to "Mt. Fuji / Cliff edge", Triple("へ", "ヘ", "he") to "Pointing to Heaven", Triple("ほ", "ホ", "ho") to "House chimney / Holy cross"),
-            "MA-Row" to listOf(Triple("ま", "マ", "ma") to "Twin sail mast / Math angle", Triple("み", "ミ", "mi") to "Musical note 21 / 3 Missiles", Triple("む", "ム", "mu") to "Moo cow horn / Muscle triangle", Triple("め", "メ", "me") to "Eye (Me) / Sword scar", Triple("も", "モ", "mo") to "More worms on hook"),
-            "YA-Row" to listOf(Triple("や", "ヤ", "ya") to "Yak horns", Triple("ゆ", "ユ", "yu") to "U-turn fish / U-boat periscope", Triple("よ", "ヨ", "yo") to "Yo-yo dangling / Toy blocks"),
-            "RA-Row" to listOf(Triple("ら", "ラ", "ra") to "Rabbit / Ramen lid", Triple("り", "リ", "ri") to "River reeds", Triple("る", "ル", "ru") to "Route loop / Tree roots", Triple("れ", "レ", "re") to "Runner kneeling / Red check", Triple("ろ", "ロ", "ro") to "Plain road / Robot square"),
-            "WA-Row" to listOf(Triple("わ", "ワ", "wa") to "Wasp belly / Wine glass", Triple("を", "ヲ", "wo") to "Object particle O", Triple("ん", "ン", "n") to "Cursive n / One-eyed wink")
-        )
-
-        gojuonRows.forEach { (rowName, chars) ->
-            chars.forEach { (triple, hint) ->
-                list.add(KanaChar(triple.first, triple.third, KanaType.HIRAGANA, KanaGroup.GOJUON, rowName, hint))
-                list.add(KanaChar(triple.second, triple.third, KanaType.KATAKANA, KanaGroup.GOJUON, rowName, hint))
-            }
+    private fun kanaSet(group: KanaGroup, h: String, k: String, r: String): List<KanaChar> {
+        val hs = ws(h)
+        val ks = ws(k)
+        val rs = ws(r)
+        val out = mutableListOf<KanaChar>()
+        for (i in rs.indices) {
+            out.add(KanaChar(hs[i], rs[i], KanaType.HIRAGANA, group))
+            out.add(KanaChar(ks[i], rs[i], KanaType.KATAKANA, group))
         }
-
-        val dakuonPairs = listOf(
-            Triple("が", "ガ", "ga"), Triple("ぎ", "ギ", "gi"), Triple("ぐ", "グ", "gu"), Triple("げ", "ゲ", "ge"), Triple("ご", "ゴ", "go"),
-            Triple("ざ", "ザ", "za"), Triple("じ", "ジ", "ji"), Triple("ず", "ズ", "zu"), Triple("ぜ", "ゼ", "ze"), Triple("ぞ", "ゾ", "zo"),
-            Triple("だ", "ダ", "da"), Triple("ぢ", "ヂ", "ji (di)"), Triple("づ", "ヅ", "zu (du)"), Triple("で", "デ", "de"), Triple("ど", "ド", "do"),
-            Triple("ば", "バ", "ba"), Triple("び", "ビ", "bi"), Triple("ぶ", "ブ", "bu"), Triple("べ", "ベ", "be"), Triple("ぼ", "ボ", "bo"),
-            Triple("ぱ", "パ", "pa"), Triple("ぴ", "ピ", "pi"), Triple("ぷ", "プ", "pu"), Triple("ぺ", "ペ", "pe"), Triple("ぽ", "ポ", "po")
-        )
-        dakuonPairs.forEach { (h, k, rom) ->
-            list.add(KanaChar(h, rom, KanaType.HIRAGANA, KanaGroup.DAKUON, "Voiced", "Dakuten / Maru voiced sound"))
-            list.add(KanaChar(k, rom, KanaType.KATAKANA, KanaGroup.DAKUON, "Voiced", "Dakuten / Maru voiced sound"))
-        }
-
-        val yoonPairs = listOf(
-            Triple("きゃ", "キャ", "kya"), Triple("きゅ", "キュ", "kyu"), Triple("きょ", "キョ", "kyo"),
-            Triple("しゃ", "シャ", "sha"), Triple("しゅ", "シュ", "shu"), Triple("しょ", "ショ", "sho"),
-            Triple("ちゃ", "チャ", "cha"), Triple("ちゅ", "チュ", "chu"), Triple("ちょ", "チョ", "cho"),
-            Triple("にゃ", "ニャ", "nya"), Triple("にゅ", "ニュ", "nyu"), Triple("にょ", "ニョ", "nyo"),
-            Triple("ひゃ", "ヒャ", "hya"), Triple("ひゅ", "ヒュ", "hyu"), Triple("ひょ", "ヒョ", "hyo"),
-            Triple("みゃ", "ミャ", "mya"), Triple("みゅ", "ミュ", "myu"), Triple("みょ", "ミョ", "myo"),
-            Triple("りゃ", "リャ", "rya"), Triple("りゅ", "リュ", "ryu"), Triple("りょ", "リョ", "ryo"),
-            Triple("ぎゃ", "ギャ", "gya"), Triple("ぎゅ", "ギュ", "gyu"), Triple("ぎょ", "ギョ", "gyo"),
-            Triple("じゃ", "ジャ", "ja"), Triple("じゅ", "ジュ", "ju"), Triple("じょ", "ジョ", "jo"),
-            Triple("びゃ", "ビャ", "bya"), Triple("びゅ", "ビュ", "byu"), Triple("びょ", "ビョ", "byo"),
-            Triple("ぴゃ", "ピャ", "pya"), Triple("ぴゅ", "ピュ", "pyu"), Triple("ぴょ", "ピョ", "pyo")
-        )
-        yoonPairs.forEach { (h, k, rom) ->
-            list.add(KanaChar(h, rom, KanaType.HIRAGANA, KanaGroup.YOON, "Yōon Combo", "Glide palatalized sound"))
-            list.add(KanaChar(k, rom, KanaType.KATAKANA, KanaGroup.YOON, "Yōon Combo", "Glide palatalized sound"))
-        }
-
-        val traps = listOf(
-            KanaChar("シ", "shi", KanaType.KATAKANA, KanaGroup.LOOKALIKES, "Shi vs Tsu", "Horizontal strokes moving UP-RIGHT (like a sideways smiley)"),
-            KanaChar("ツ", "tsu", KanaType.KATAKANA, KanaGroup.LOOKALIKES, "Shi vs Tsu", "Vertical ticks + stroke moving DOWN-LEFT (Tsunami drops)"),
-            KanaChar("ソ", "so", KanaType.KATAKANA, KanaGroup.LOOKALIKES, "So vs N", "Top tick + downward stroke (Sewing needle)"),
-            KanaChar("ン", "n", KanaType.KATAKANA, KanaGroup.LOOKALIKES, "So vs N", "Side tick + upward stroke (One-eyed cyclops)"),
-            KanaChar("る", "ru", KanaType.HIRAGANA, KanaGroup.LOOKALIKES, "Ru vs Ro", "Has a loop at the bottom (RU-by loop)"),
-            KanaChar("ろ", "ro", KanaType.HIRAGANA, KanaGroup.LOOKALIKES, "Ru vs Ro", "No loop at the bottom (Plain RO-ad)"),
-            KanaChar("わ", "wa", KanaType.HIRAGANA, KanaGroup.LOOKALIKES, "Wa vs Re vs Ne", "Round smooth belly on the right"),
-            KanaChar("れ", "re", KanaType.HIRAGANA, KanaGroup.LOOKALIKES, "Wa vs Re vs Ne", "Kicks outward to the right"),
-            KanaChar("ね", "ne", KanaType.HIRAGANA, KanaGroup.LOOKALIKES, "Wa vs Re vs Ne", "Curls into a loop like a Neko (cat) tail")
-        )
-        list.addAll(traps)
-        list
+        return out
     }
 
-    val vocabList: List<VocabItem> = listOf(
-        // ==================== JLPT N5 ====================
-        VocabItem("n5_1", "食べる", "たべる", "taberu", "To eat", "खाना (Khaana)", JlptLevel.N5, "Verb", VerbGroup.ICHIDAN, listOf(0, 1, 0), PitchType.NAKADAKA, "食 (Food/Eat)", "ショク (shoku)", "た-べる (ta-beru)", "A person under a roof with good rice.", "毎朝パンを食べます。", "Maiasa pan o tabemasu.", "I eat bread every morning.", "मैं हर सुबह ब्रेड खाता हूँ।"),
-        VocabItem("n5_2", "飲む", "のむ", "nomu", "To drink", "पीना (Peena)", JlptLevel.N5, "Verb", VerbGroup.GODAN, listOf(1, 0), PitchType.ATAMADAKA, "飠(Food) + 欠 (Yawn/Open mouth)", "イン (in)", "の-む (no-mu)", "Opening your mouth wide beside food/liquid.", "冷たい水を飲む。", "Tsumetai mizu o nomu.", "I drink cold water.", "मैं ठंडा पानी पीता हूँ।"),
-        VocabItem("n5_3", "行く", "いく", "iku", "To go", "जाना (Jaana)", JlptLevel.N5, "Verb", VerbGroup.GODAN, listOf(0, 1), PitchType.HEIBAN, "彳 (Step) + 亍 (Step)", "コウ / ギョウ", "い-く / ゆ-く", "Footsteps at a crossroads.", "明日東京へ行きます。", "Ashita Toukyou e ikimasu.", "I will go to Tokyo tomorrow.", "मैं कल टोक्यो जाऊँगा।"),
-        VocabItem("n5_4", "見る", "みる", "miru", "To see / watch", "देखना (Dekhna)", JlptLevel.N5, "Verb", VerbGroup.ICHIDAN, listOf(1, 0), PitchType.ATAMADAKA, "目 (Eye) + 儿 (Legs)", "ケン (ken)", "み-る (mi-ru)", "An eye walking on two legs looking around.", "日本のアニメを見る。", "Nihon no anime o miru.", "I watch Japanese anime.", "मैं जापानी एनीमे देखता हूँ।"),
-        VocabItem("n5_5", "話す", "はなす", "hanasu", "To speak / talk", "बात करना / बोलना", JlptLevel.N5, "Verb", VerbGroup.GODAN, listOf(0, 1, 0), PitchType.NAKADAKA, "言 (Words) + 舌 (Tongue)", "ワ (wa)", "はな-す (hana-su)", "Using your tongue to produce words.", "日本語を話すことができます。", "Nihongo o hanasu koto ga dekimasu.", "I can speak Japanese.", "मैं जापानी बोल सकता हूँ।"),
-        VocabItem("n5_6", "聞く", "きく", "kiku", "To listen / ask", "सुनना / पूछना", JlptLevel.N5, "Verb", VerbGroup.GODAN, listOf(0, 1), PitchType.HEIBAN, "門 (Gate) + 耳 (Ear)", "ブン / モン", "き-く (ki-ku)", "An ear pressed against a gate listening closely.", "音楽を聞いています。", "Ongaku o kiite imasu.", "I am listening to music.", "मैं संगीत सुन रहा हूँ।"),
-        VocabItem("n5_7", "読む", "よむ", "yomu", "To read", "पढ़ना (Padhna)", JlptLevel.N5, "Verb", VerbGroup.GODAN, listOf(1, 0), PitchType.ATAMADAKA, "言 (Words) + 売 (Sell)", "ドク (doku)", "よ-む (yo-mu)", "Reading words aloud like a street vendor.", "毎晩本を読みます。", "Maiban hon o yomimasu.", "I read a book every night.", "मैं हर रात किताब पढ़ता हूँ।"),
-        VocabItem("n5_8", "書く", "かく", "kaku", "To write", "लिखना (Likhna)", JlptLevel.N5, "Verb", VerbGroup.GODAN, listOf(1, 0), PitchType.ATAMADAKA, "聿 (Brush) + 日 (Sun/Day)", "ショ (sho)", "か-く (ka-ku)", "Holding a calligraphy brush to write daily.", "漢字をきれいに書く。", "Kanji o kirei ni kaku.", "Write Kanji neatly.", "कांजी को साफ-सुथरा लिखें।"),
-        VocabItem("n5_9", "買う", "かう", "kau", "To buy", "खरीदना (Khareedna)", JlptLevel.N5, "Verb", VerbGroup.GODAN, listOf(0, 1), PitchType.HEIBAN, "罒 (Net) + 貝 (Shell/Money)", "バイ (bai)", "か-う (ka-u)", "Using shell money to net items at a market.", "新しいパソコンを買った。", "Atarashii pasokon o katta.", "I bought a new laptop.", "मैंने नया लैपटॉप खरीदा।"),
-        VocabItem("n5_10", "待つ", "まつ", "matsu", "To wait", "इंतज़ार करना", JlptLevel.N5, "Verb", VerbGroup.GODAN, listOf(1, 0), PitchType.ATAMADAKA, "彳 (Step) + 寺 (Temple)", "タイ (tai)", "ま-つ (ma-tsu)", "Stopping your steps outside a temple to wait.", "ちょっと待ってください。", "Chotto matte kudasai.", "Please wait a moment.", "कृपया थोड़ा इंतज़ार करें।"),
-        VocabItem("n5_11", "勉強する", "べんきょうする", "benkyou suru", "To study", "पढ़ाई करना", JlptLevel.N5, "Verb", VerbGroup.IRREGULAR, listOf(0, 1, 1, 1, 1, 1), PitchType.HEIBAN, "勉 (Exertion) + 強 (Strong)", "ベンキョウ", "-", "Forcing yourself to become strong through study.", "毎日二時間勉強します。", "Mainichi nijikan benkyou shimasu.", "I study two hours every day.", "मैं रोज़ दो घंटे पढ़ाई करता हूँ।"),
-        VocabItem("n5_12", "来る", "くる", "kuru", "To come", "आना (Aana)", JlptLevel.N5, "Verb", VerbGroup.IRREGULAR, listOf(1, 0), PitchType.ATAMADAKA, "木 (Tree) + wheat ears", "ライ (rai)", "く-る / き / こ", "Grain ripening as the harvest season comes.", "友達が家に来ました。", "Tomodachi ga ie ni kimashita.", "My friend came to my house.", "मेरा दोस्त मेरे घर आया।"),
-        VocabItem("n5_13", "先生", "せんせい", "sensei", "Teacher / Doctor", "शिक्षक / गुरु", JlptLevel.N5, "Noun", VerbGroup.NOT_VERB, listOf(0, 1, 1, 0), PitchType.NAKADAKA, "先 (Before/Ahead) + 生 (Life)", "センセイ", "-", "One who was born before and guides life.", "先生に質問しました。", "Sensei ni shitsumon shimashita.", "I asked the teacher a question.", "मैंने शिक्षक से एक प्रश्न पूछा।"),
-        VocabItem("n5_14", "友達", "ともだち", "tomodachi", "Friend", "दोस्त / मित्र", JlptLevel.N5, "Noun", VerbGroup.NOT_VERB, listOf(0, 1, 1, 1), PitchType.HEIBAN, "友 (Two hands clasped) + 達 (Plural/Reach)", "ユウ / タツ", "とも", "Two hands working together side by side.", "友達と映画を見に行く。", "Tomodachi to eiga o mi ni iku.", "I go to watch a movie with my friend.", "मैं दोस्त के साथ फिल्म देखने जाता हूँ।"),
-        VocabItem("n5_15", "電車", "でんしゃ", "densha", "Electric Train", "ट्रेन / रेलगाड़ी", JlptLevel.N5, "Noun", VerbGroup.NOT_VERB, listOf(0, 1, 1), PitchType.HEIBAN, "電 (Rain + Lightning) + 車 (Wheel/Car)", "デンシャ", "-", "A wheeled carriage powered by lightning.", "電車で大学に通っています。", "Densha de daigaku ni kayotte imasu.", "I commute to university by train.", "मैं ट्रेन से यूनिवर्सिटी जाता हूँ।"),
-
-        // ==================== JLPT N4 ====================
-        VocabItem("n4_1", "続ける", "つづける", "tsuzukeru", "To continue", "जारी रखना (Jaari rakhna)", JlptLevel.N4, "Verb", VerbGroup.ICHIDAN, listOf(0, 1, 1, 1), PitchType.HEIBAN, "糸 (Thread) + 売 (Sell/Connect)", "ゾク (zoku)", "つづ-ける", "Spinning thread continuously without breaking.", "諦めずに努力を続ける。", "Akiramezu ni doryoku o tsuzukeru.", "Continue making efforts without giving up.", "बिना हार माने प्रयास जारी रखें।"),
-        VocabItem("n4_2", "決める", "きめる", "kimeru", "To decide", "तय करना / निर्णय लेना", JlptLevel.N4, "Verb", VerbGroup.ICHIDAN, listOf(0, 1, 1), PitchType.HEIBAN, "氵(Water) + 夬 (Break open)", "ケツ (ketsu)", "き-める", "Water breaking through a dam decisively.", "将来の目標を決めた。", "Shourai no mokuhyou o kimeta.", "I decided my future goal.", "मैंने अपने भविष्य का लक्ष्य तय कर लिया।"),
-        VocabItem("n4_3", "調べる", "しらべる", "shiraberu", "To investigate / look up", "जाँच करना / खोजना", JlptLevel.N4, "Verb", VerbGroup.ICHIDAN, listOf(0, 1, 1, 0), PitchType.NAKADAKA, "言 (Words) + 周 (Circumference/All around)", "チョウ (chou)", "しら-べる", "Inquiring words all around to check every detail.", "辞書で新しい単語を調べる。", "Jisho de atarashii tango o shiraberu.", "Look up new words in a dictionary.", "शब्दकोश में नए शब्द खोजना।"),
-        VocabItem("n4_4", "選ぶ", "えらぶ", "erabu", "To choose / select", "चुनना (Chunna)", JlptLevel.N4, "Verb", VerbGroup.GODAN, listOf(0, 1, 0), PitchType.NAKADAKA, "⻌ (Road) + 巽 (Two people on pedestal)", "セン (sen)", "えら-ぶ", "Selecting candidates to place on a pedestal.", "好きな色を選んでください。", "Suki na iro o erande kudasai.", "Please choose your favorite color.", "कृपया अपना पसंदीदा रंग चुनें।"),
-        VocabItem("n4_5", "直す", "なおす", "naosu", "To repair / correct", "ठीक करना / सुधारना", JlptLevel.N4, "Verb", VerbGroup.GODAN, listOf(0, 1, 0), PitchType.NAKADAKA, "十 (Ten) + 目 (Eye) + L (Corner)", "チョク / ジキ", "なお-す", "Looking with ten eyes to straighten a crooked line.", "間違いを赤ペンで直す。", "Machigai o akapen de naosu.", "Correct mistakes with a red pen.", "लाल पेन से गलतियाँ सुधारें।"),
-        VocabItem("n4_6", "約束する", "やくそくする", "yakusoku suru", "To promise", "वादा करना (Vaada karna)", JlptLevel.N4, "Verb", VerbGroup.IRREGULAR, listOf(0, 1, 1, 1, 1, 1), PitchType.HEIBAN, "糸 (Thread) + 束 (Bundle)", "ヤクソク", "-", "Binding threads into a bundle as a firm pledge.", "時間を守ると約束した。", "Jikan o mamoru to yakusoku shita.", "I promised to be punctual.", "मैंने समय का पालन करने का वादा किया।"),
-        VocabItem("n4_7", "準備する", "じゅんびする", "junbi suru", "To prepare", "तैयारी करना", JlptLevel.N4, "Verb", VerbGroup.IRREGULAR, listOf(1, 0, 0, 0, 0), PitchType.ATAMADAKA, "準 (Level/Standard) + 備 (Provide/Equip)", "ジュンビ", "-", "Equipping everything up to standard beforehand.", "試験の準備はバッチリだ。", "Shiken no junbi wa batchiri da.", "Preparation for the exam is complete.", "परीक्षा की तैयारी एकदम पक्की है।"),
-        VocabItem("n4_8", "経験", "けいけん", "keiken", "Experience", "अनुभव (Anubhav)", JlptLevel.N4, "Noun", VerbGroup.NOT_VERB, listOf(0, 1, 1, 1), PitchType.HEIBAN, "経 (Pass through warp threads) + 験 (Test/Verify)", "ケイケン", "-", "What you verify by passing through life's tests.", "留学は貴重な経験になった。", "Ryuugaku wa kichou na keiken ni natta.", "Studying abroad became a valuable experience.", "विदेश में पढ़ाई एक बहुमूल्य अनुभव बन गया।"),
-
-        // ==================== JLPT N3 ====================
-        VocabItem("n3_1", "解決する", "かいけつする", "kaiketsu suru", "To solve / resolve", "समाधान करना", JlptLevel.N3, "Verb", VerbGroup.IRREGULAR, listOf(0, 1, 1, 1, 1, 1), PitchType.HEIBAN, "解 (Untie horn with knife) + 決 (Decide)", "カイケツ", "-", "Untying a complex knot decisively.", "技術の力で社会問題を解決する。", "Gijutsu no chikara de shakai mondai o kaiketsu suru.", "Solve social problems with the power of technology.", "तकनीक की शक्ति से सामाजिक समस्याओं का समाधान करना।"),
-        VocabItem("n3_2", "認める", "みとめる", "mitomeru", "To recognize / admit / approve", "स्वीकार करना / मान्यता देना", JlptLevel.N3, "Verb", VerbGroup.ICHIDAN, listOf(0, 1, 1, 1), PitchType.HEIBAN, "言 (Words) + 忍 (Endure/Blade over heart)", "ニン (nin)", "みと-める", "Speaking words of acknowledgment from the heart.", "自分のミスを素直に認める。", "Jibun no misu o sunao ni mitomeru.", "Honestly admit one's own mistake.", "अपनी गलती को ईमानदारी से स्वीकार करना।"),
-        VocabItem("n3_3", "守る", "まもる", "mamoru", "To protect / obey (rules)", "रक्षा करना / पालन करना", JlptLevel.N3, "Verb", VerbGroup.GODAN, listOf(0, 1, 0), PitchType.NAKADAKA, "宀 (Roof) + 寸 (Inch/Law)", "シュ / ス", "まも-る", "Enforcing the law under a roof to guard the house.", "交通ルールを必ず守る。", "Koutsuu ruuru o kanarazu mamoru.", "Always obey traffic rules.", "यातायात नियमों का हमेशा पालन करें।"),
-        VocabItem("n3_4", "影響", "えいきょう", "eikyou", "Influence / Impact", "प्रभाव / असर", JlptLevel.N3, "Noun", VerbGroup.NOT_VERB, listOf(0, 1, 1, 1), PitchType.HEIBAN, "影 (Shadow) + 響 (Echo/Sound)", "エイキョウ", "-", "Like a shadow and an echo following an action.", "AIは世界経済に大きな影響を与えている。", "AI wa sekai keizai ni ookina eikyou o ataete iru.", "AI is having a huge impact on the global economy.", "AI विश्व अर्थव्यवस्था पर बड़ा प्रभाव डाल रहा है।"),
-        VocabItem("n3_5", "努力", "どりょく", "doryoku", "Effort / Hard work", "प्रयास / कड़ी मेहनत", JlptLevel.N3, "Noun", VerbGroup.NOT_VERB, listOf(1, 0, 0), PitchType.ATAMADAKA, "努 (Toil) + 力 (Power/Muscle)", "ドリョク", "-", "Applying all your muscle and toil toward a goal.", "毎日の努力が合格につながる。", "Mainichi no doryoku ga goukaku ni tsunagaru.", "Daily effort leads to passing the exam.", "रोज़ की मेहनत सफलता दिलाती है।"),
-        VocabItem("n3_6", "比較する", "ひかくする", "hikaku suru", "To compare", "तुलना करना (Tulna karna)", JlptLevel.N3, "Verb", VerbGroup.IRREGULAR, listOf(0, 1, 1, 1, 1), PitchType.HEIBAN, "比 (Two people side by side) + 較 (Carriage check)", "ヒカク", "-", "Lining two things up side by side to measure differences.", "二つのアルゴリズムの速度を比較する。", "Futatsu no arugorizumu no sokudo o hikaku suru.", "Compare the speed of two algorithms.", "दो एल्गोरिदम की गति की तुलना करना।"),
-
-        // ==================== JLPT N2 ====================
-        VocabItem("n2_1", "把握する", "はあくする", "haaku suru", "To grasp / comprehend fully", "पूरी तरह समझना / पकड़ बनाना", JlptLevel.N2, "Verb", VerbGroup.IRREGULAR, listOf(0, 1, 1, 1, 1), PitchType.HEIBAN, "扌(Hand) + 巴 (Grip) + 屋 (Room)", "ハアク", "-", "Closing your hand firmly around the core of an issue.", "ユーザーのニーズを正確に把握する。", "Yuuzaa no niizu o seikaku ni haaku suru.", "Accurately grasp the needs of the users.", "यूज़र्स की ज़रूरतों को सटीक रूप से समझना।"),
-        VocabItem("n2_2", "妥協する", "だきょうする", "dakyou suru", "To compromise", "समझौता करना", JlptLevel.N2, "Verb", VerbGroup.IRREGULAR, listOf(0, 1, 1, 1, 1), PitchType.HEIBAN, "妥 (Gentle/Settle) + 協 (Cooperate with 3 strengths)", "ダキョウ", "-", "Settling a dispute by meeting halfway.", "安全性に関しては一切妥協できない。", "Anzensei ni kanshite wa issai dakyou dekinai.", "We cannot compromise at all regarding safety.", "सुरक्षा के मामले में कोई समझौता नहीं किया जा सकता।"),
-        VocabItem("n2_3", "矛盾", "むじゅん", "mujun", "Contradiction / Paradox", "विरोधाभास (Virodhaabhaas)", JlptLevel.N2, "Noun", VerbGroup.NOT_VERB, listOf(0, 1, 1, 1), PitchType.HEIBAN, "矛 (Unstoppable Spear) + 盾 (Impenetrable Shield)", "ムジュン", "-", "From the classic Chinese tale of an unstoppable spear vs an unbreakable shield.", "彼の理論には明らかな矛盾がある。", "Kare no riron ni wa akiraka na mujun ga aru.", "There is an obvious contradiction in his theory.", "उनके सिद्धांत में स्पष्ट विरोधाभास है।"),
-        VocabItem("n2_4", "貢献する", "こうけんする", "kouken suru", "To contribute", "योगदान देना (Yogdaan dena)", JlptLevel.N2, "Verb", VerbGroup.IRREGULAR, listOf(0, 1, 1, 1, 1, 1), PitchType.HEIBAN, "貢 (Tribute/Work) + 献 (Offer/Dedicate)", "コウケン", "-", "Offering valuable work to advance society.", "オープンソースにコードを貢献する。", "Oopun soosu ni koudo o kouken suru.", "Contribute code to open source.", "ओपन सोर्स में कोड का योगदान देना।"),
-        VocabItem("n2_5", "克服する", "こくふくする", "kokufuku suru", "To overcome / conquer", "विजय पाना / काबू पाना", JlptLevel.N2, "Verb", VerbGroup.IRREGULAR, listOf(0, 1, 1, 1, 1, 1), PitchType.HEIBAN, "克 (Overcome hardship) + 服 (Submit/Subdue)", "コクフク", "-", "Subduing a weakness through perseverance.", "弱点を克服して試験に挑む。", "Jakuten o kokufuku shite shiken ni idomu.", "Overcome weaknesses and challenge the exam.", "कमज़ोरियों पर काबू पाकर परीक्षा का सामना करना।"),
-
-        // ==================== JLPT N1 ====================
-        VocabItem("n1_1", "不可欠", "ふかけつ", "fukaketsu", "Indispensable / Essential", "अनिवार्य / अत्यंत आवश्यक", JlptLevel.N1, "Na-Adjective", VerbGroup.NOT_VERB, listOf(0, 1, 1, 1), PitchType.HEIBAN, "不 (Not) + 可 (Possible) + 欠 (Lack)", "フカケツ", "-", "Something that is impossible to lack.", "継続的な学習は成長に不可欠である。", "Keizokuteki na gakushuu wa seichou ni fukaketsu de aru.", "Continuous learning is indispensable for growth.", "विकास के लिए निरंतर सीखना अनिवार्य है।"),
-        VocabItem("n1_2", "画期的", "かっきてき", "kakkiteki", "Groundbreaking / Epoch-making", "क्रांतिकारी / अभूतपूर्व", JlptLevel.N1, "Na-Adjective", VerbGroup.NOT_VERB, listOf(0, 1, 1, 1, 1), PitchType.HEIBAN, "画 (Divide/Draw line) + 期 (Era) + 的 (Target)", "カッキテキ", "-", "Drawing a line that marks a brand new era.", "画期的なアルゴリズムを発表した。", "Kakkiteki na arugorizumu o happyou shita.", "Published a groundbreaking algorithm.", "एक क्रांतिकारी एल्गोरिदम प्रकाशित किया।"),
-        VocabItem("n1_3", "網羅する", "もうらする", "moura suru", "To encompass exhaustively / cover all", "संपूर्ण रूप से शामिल करना", JlptLevel.N1, "Verb", VerbGroup.IRREGULAR, listOf(1, 0, 0, 0, 0), PitchType.ATAMADAKA, "網 (Fishing net) + 羅 (Bird net)", "モウラ", "-", "Casting both fish nets and bird nets to leave nothing out.", "このアプリはN5からN1まで網羅している。", "Kono apuri wa N5 kara N1 made moura shite iru.", "This app exhaustively covers from N5 to N1.", "यह ऐप N5 से N1 तक सब कुछ संपूर्ण रूप से कवर करता है।"),
-        VocabItem("n1_4", "凌駕する", "りょうがする", "ryouga suru", "To surpass / outstrip / eclipse", "पीछे छोड़ देना / श्रेष्ठ साबित होना", JlptLevel.N1, "Verb", VerbGroup.IRREGULAR, listOf(1, 0, 0, 0, 0), PitchType.ATAMADAKA, "凌 (Rise above ice) + 駕 (Ride/Mount horse)", "リョウガ", "-", "Rising far above the competition.", "既存の学習アプリを凌駕する性能。", "Kizon no gakushuu apuri o ryouga suru seinou.", "Performance that surpasses existing learning apps.", "मौजूदा लर्निंग ऐप्स को पीछे छोड़ देने वाली क्षमता।"),
-        VocabItem("n1_5", "試行錯誤", "しこうさくご", "shikou sakugo", "Trial and error", "प्रयास और भूल (Yojipukago 4-Kanji Idiom)", JlptLevel.N1, "Yojijukugo", VerbGroup.NOT_VERB, listOf(0, 1, 1, 1, 0, 0), PitchType.NAKADAKA, "試 (Try) + 行 (Act) + 錯 (Mix) + 誤 (Mistake)", "シコウサクゴ", "-", "Trying, acting, making mistakes, and refining until perfection.", "試行錯誤を重ねてシステムを完成させた。", "Shikou sakugo o kasanete shisutemu o kansei saseta.", "Through repeated trial and error, we completed the system.", "बार-बार प्रयास और सुधार करके सिस्टम को पूरा किया।")
-    )
-
-    val grammarList: List<GrammarPoint> = listOf(
-        GrammarPoint(
-            id = "g_n5_1",
-            title = "Core Particles Matrix (は・が・を・に・で・の)",
-            level = JlptLevel.N5,
-            structure = "[Topic] は [Place] で [Object] を [Verb]",
-            explanation = "Unlike English prepositions (in, at, to) which come BEFORE nouns, Japanese particles are postpositions that come AFTER nouns—100% identical to Hindi!",
-            hindiParallel = "は (wa) = तो/के बारे में | が (ga) = ने | を (o) = को | に (ni) = में/पर/को (लक्ष्य) | で (de) = से/में (साधन या क्रिया का स्थान) | の (no) = का/के/की",
-            commonMistake = "Don't use に for active actions at a place! Use で for where an action happens (図書館で勉強する = लाइब्रेरी में पढ़ाई करना).",
-            examples = listOf(
-                ExampleSentence("私は図書館で日本語の本を読みます。", "Watashi wa toshokan de Nihongo no hon o yomimasu.", "I read a Japanese book at the library.", "मैं (私は) लाइब्रेरी में (図書館で) जापानी की (日本語の) किताब को (本を) पढ़ता हूँ (読みます)।")
-            )
-        ),
-        GrammarPoint(
-            id = "g_n5_2",
-            title = "〜ている (Ongoing Action vs Resulting State)",
-            level = JlptLevel.N5,
-            structure = "Verb (Te-form) + いる / います",
-            explanation = "For action verbs (eat, read), 〜ている means 'is doing right now'. For instant change-of-state verbs (marry, know, open, die), it means a resulting state ('is married', 'knows').",
-            hindiParallel = "रहा है / रही है (खा रहा है) या अवस्था (शादीशुदा है / जानता है)।",
-            commonMistake = "Negative of 知っている (I know) is ALWAYS 知っています → 知りません (never 知らないでいる).",
-            examples = listOf(
-                ExampleSentence("今、コードをテストしています。", "Ima, koudo o tesuto shite imasu.", "I am testing the code right now.", "अभी कोड टेस्ट कर रहा हूँ।"),
-                ExampleSentence("田中さんは結婚しています。", "Tanaka-san wa kekkon shite imasu.", "Mr. Tanaka is married.", "तानाका जी शादीशुदा हैं।")
-            )
-        ),
-        GrammarPoint(
-            id = "g_n4_1",
-            title = "Giving & Receiving Matrix (あげる・くれる・もらう)",
-            level = JlptLevel.N4,
-            structure = "〜てあげる (Do for others) | 〜てくれる (Others do for me) | 〜てもらう (I receive favor)",
-            explanation = "Japanese encodes gratitude and direction into favors: くれる always points INWARD toward you (the speaker), while あげる points OUTWARD.",
-            hindiParallel = "〜てくれる = मेरे लिए कर दिया (कृपा) | 〜てもらう = मैंने उनसे करवाया/मदद पाई।",
-            commonMistake = "When a friend helps YOU, say 友達が教えてくれた (never あげた)!",
-            examples = listOf(
-                ExampleSentence("先輩がバグを直してくれました。", "Senpai ga bagu o naoshite kuremashita.", "My senior kindly fixed the bug for me.", "सीनियर ने मेरे लिए बग ठीक कर दिया।")
-            )
-        ),
-        GrammarPoint(
-            id = "g_n3_1",
-            title = "〜わけだ vs 〜わけではない (Logical Conclusion vs Partial Denial)",
-            level = JlptLevel.N3,
-            structure = "Plain Form + わけだ / わけではない",
-            explanation = "〜わけだ means 'No wonder / It makes logical sense that...'. Adding ではない means 'It doesn't necessarily mean that all X is Y'.",
-            hindiParallel = "〜わけだ = तभी तो / इसका मतलब यह हुआ | 〜わけではない = ऐसा भी नहीं है कि...",
-            commonMistake = "Don't confuse 〜わけがない (Impossible!) with 〜わけではない (Not necessarily).",
-            examples = listOf(
-                ExampleSentence("日本に10年住んでいたから、日本語が上手なわけだ。", "Nihon ni juunen sunde ita kara, Nihongo ga jouzu na wake da.", "He lived in Japan for 10 years, so no wonder his Japanese is great!", "वह 10 साल जापान में रहा है, तभी तो उसकी जापानी इतनी अच्छी है।"),
-                ExampleSentence("高いものがすべて良いというわけではない。", "Takai mono ga subete yoi to iu wake dewa nai.", "It's not necessarily true that all expensive things are good.", "ऐसा ज़रूरी नहीं कि हर महँगी चीज़ अच्छी ही हो।")
-            )
-        ),
-        GrammarPoint(
-            id = "g_n2_1",
-            title = "Keigo Master Matrix: Sonkeigo (尊敬語) vs Kenjougo (謙譲語)",
-            level = JlptLevel.N2,
-            structure = "お + V-stem + になる (Respectful) vs お + V-stem + する (Humble)",
-            explanation = "In Japanese business/interviews: Sonkeigo elevates the listener/professor/client. Kenjougo lowers your own actions to show humility.",
-            hindiParallel = "Sonkeigo = आप पधारिए / ग्रहण कीजिए (आदरसूचक) | Kenjougo = मैं प्रस्तुत करता हूँ (विनम्रता)।",
-            commonMistake = "Special verbs: 行く/来る → いらっしゃる (Respectful) vs 参る/伺う (Humble). 言う → おっしゃる (Respectful) vs 申し上げる (Humble).",
-            examples = listOf(
-                ExampleSentence("先生はもうお帰りになりました。", "Sensei wa mou okaeri ni narimashita.", "The professor has already returned home (Respectful).", "प्रोफेसर साहब घर प्रस्थान कर चुके हैं।"),
-                ExampleSentence("明日、研究室に伺います。", "Ashita, kenkyuushitsu ni ukagaimasu.", "I will humbly visit your laboratory tomorrow (Humble).", "मैं कल आपकी प्रयोगशाला में उपस्थित होऊँगा।")
-            )
-        ),
-        GrammarPoint(
-            id = "g_n1_1",
-            title = "〜を余儀なくされる & 〜に即して (Formal N1 Expressions)",
-            level = JlptLevel.N1,
-            structure = "Noun + を余儀なくされる (Compelled to) | Noun + に即して (In accordance with reality)",
-            explanation = "High-level academic and news expressions. 〜を余儀なくされる indicates being forced by circumstances. 〜に即して means adhering strictly to facts/rules.",
-            hindiParallel = "〜を余儀なくされる = के लिए बाध्य होना पड़ा | 〜に即して = तथ्यों/नियमों के अनुरूप।",
-            commonMistake = "〜を余儀なくされる is always used with a negative/reluctant situation (cancellation, retreat, modification).",
-            examples = listOf(
-                ExampleSentence("予算不足のため、計画の縮小を余儀なくされた。", "Yosan busoku no tame, keikaku no shukushou o yoginaku sareta.", "Due to budget shortages, we were forced to scale down the plan.", "बजट की कमी के कारण योजना को छोटा करने के लिए बाध्य होना पड़ा।")
-            )
+    val allKana: List<KanaChar> by lazy {
+        kanaSet(
+            KanaGroup.BASIC,
+            "あ い う え お か き く け こ さ し す せ そ た ち つ て と な に ぬ ね の は ひ ふ へ ほ ま み む め も や ゆ よ ら り る れ ろ わ を ん",
+            "ア イ ウ エ オ カ キ ク ケ コ サ シ ス セ ソ タ チ ツ テ ト ナ ニ ヌ ネ ノ ハ ヒ フ ヘ ホ マ ミ ム メ モ ヤ ユ ヨ ラ リ ル レ ロ ワ ヲ ン",
+            "a i u e o ka ki ku ke ko sa shi su se so ta chi tsu te to na ni nu ne no ha hi fu he ho ma mi mu me mo ya yu yo ra ri ru re ro wa wo n"
+        ) + kanaSet(
+            KanaGroup.VOICED,
+            "が ぎ ぐ げ ご ざ じ ず ぜ ぞ だ ぢ づ で ど ば び ぶ べ ぼ ぱ ぴ ぷ ぺ ぽ",
+            "ガ ギ グ ゲ ゴ ザ ジ ズ ゼ ゾ ダ ヂ ヅ デ ド バ ビ ブ ベ ボ パ ピ プ ペ ポ",
+            "ga gi gu ge go za ji zu ze zo da ji zu de do ba bi bu be bo pa pi pu pe po"
+        ) + kanaSet(
+            KanaGroup.COMBO,
+            "きゃ きゅ きょ しゃ しゅ しょ ちゃ ちゅ ちょ にゃ にゅ にょ ひゃ ひゅ ひょ みゃ みゅ みょ りゃ りゅ りょ ぎゃ ぎゅ ぎょ じゃ じゅ じょ びゃ びゅ びょ ぴゃ ぴゅ ぴょ",
+            "キャ キュ キョ シャ シュ ショ チャ チュ チョ ニャ ニュ ニョ ヒャ ヒュ ヒョ ミャ ミュ ミョ リャ リュ リョ ギャ ギュ ギョ ジャ ジュ ジョ ビャ ビュ ビョ ピャ ピュ ピョ",
+            "kya kyu kyo sha shu sho cha chu cho nya nyu nyo hya hyu hyo mya myu myo rya ryu ryo gya gyu gyo ja ju jo bya byu byo pya pyu pyo"
         )
-    )
+    }
 
-    val stories: List<ImmersionStory> = listOf(
-        ImmersionStory(
-            id = "s1",
-            titleJp = "コンビニでの買い物",
-            titleEn = "Shopping at a Tokyo Convenience Store",
-            level = JlptLevel.N5,
-            lines = listOf(
-                StoryLine("店員 (Clerk)", "いらっしゃいませ！お弁当温めますか？", "Irasshaimase! Obentou atatamemasu ka?", "Welcome! Would you like your bento heated up?", "स्वागत है! क्या आपका बेंतो गर्म कर दूँ?", listOf("いらっしゃいませ" to "Welcome (to a shop)", "お弁当" to "Bento lunch box", "温めます" to "To heat up")),
-                StoryLine("あなた (You)", "はい、お願いします。あと、袋はいりません。", "Hai, onegaishimasu. Ato, fukuro wa irimasen.", "Yes, please. Also, I don't need a plastic bag.", "जी हाँ, कृपया। और मुझे बैग (पॉलिथीन) नहीं चाहिए।", listOf("お願いします" to "Please (request)", "袋 (ふくろ)" to "Bag", "いりません" to "Do not need")),
-                StoryLine("店員 (Clerk)", "かしこまりました。お支払いはどうなさいますか？", "Kashikomarimashita. Oshiharai wa dou nasaimasu ka?", "Certainly. How would you like to pay?", "जी बिल्कुल। आप भुगतान कैसे करना चाहेंगे?", listOf("かしこまりました" to "Certainly / Understood (Humble)", "お支払い" to "Payment")),
-                StoryLine("あなた (You)", "Suica（スイカ）で払います。", "Suica de haraimasu.", "I will pay with Suica (IC Card).", "मैं Suica कार्ड से पेमेंट करूँगा।", listOf("で" to "By means of (Particle)", "払います (はらいます)" to "To pay"))
-            ),
-            comprehensionQuestion = "Why did the customer say 「袋はいりません」?",
-            options = listOf("They wanted the bento cold", "They did not need a shopping bag", "They wanted to pay by cash", "They asked for chopsticks"),
-            correctOption = 1
-        ),
-        ImmersionStory(
-            id = "s2",
-            titleJp = "大学院の研究室訪問（敬語）",
-            titleEn = "Visiting a University Research Lab in Japan",
-            level = JlptLevel.N2,
-            lines = listOf(
-                StoryLine("学生 (Student)", "失礼いたします。本日お時間をいただき、ありがとうございます。", "Shitsurei itashimasu. Honjitsu ojikan o itadaki, arigatou gozaimasu.", "Excuse me for entering. Thank you very much for granting me your time today.", "क्षमा करें (प्रवेश करते हुए)। आज अपना कीमती समय देने के लिए बहुत-बहुत धन्यवाद।", listOf("失礼いたします" to "Excuse me (Humble Keigo)", "いただき" to "Humbly receiving")),
-                StoryLine("教授 (Professor)", "どうぞ座ってください。君の論文を読みましたよ。画期的な手法ですね。", "Douzo suwatte kudasai. Kimi no ronbun o yomimashita yo. Kakkiteki na shuhou desu ne.", "Please have a seat. I read your research paper. It's a groundbreaking approach!", "कृपया बैठिए। मैंने आपका रिसर्च पेपर पढ़ा। यह एक क्रांतिकारी तरीका है!", listOf("論文 (ろんぶん)" to "Research paper / Thesis", "画期的" to "Groundbreaking", "手法" to "Methodology")),
-                StoryLine("学生 (Student)", "光栄です。CPUのみで高速に動作するよう試行錯誤を重ねました。", "Kouei desu. CPU nomi de kousoku ni dousa suru you shikou sakugo o kasanemashita.", "I am honored. I went through repeated trial and error so it runs fast on CPU only.", "यह मेरा सौभाग्य है। केवल CPU पर तेज़ चलने के लिए मैंने कई बार प्रयास और सुधार किए।", listOf("光栄 (こうえい)" to "Honor / Privilege", "試行錯誤" to "Trial and error", "高速" to "High speed"))
-            ),
-            comprehensionQuestion = "What did the professor praise about the student's work?",
-            options = listOf("Their Japanese handwriting", "Their groundbreaking research methodology", "Their punctuality", "Their university grades"),
-            correctOption = 1
-        )
-    )
+    // ---------------------------------------------------------------
+    // WORDS  (type|kanji|kana|romaji|english|hindi|example|example romaji|example english)
+    // ---------------------------------------------------------------
+    private val wordTypeByCode: Map<String, WordType> by lazy { WordType.entries.associateBy { it.code } }
 
-    val sentencePuzzles: List<SentencePuzzle> = listOf(
-        SentencePuzzle(
-            id = "p1",
-            level = JlptLevel.N5,
-            englishPrompt = "I study Japanese every day.",
-            hindiPrompt = "मैं (私は) हर दिन (毎日) जापानी को (日本語を) पढ़ता हूँ (勉強します)।",
-            correctTiles = listOf("私は", "毎日", "日本語を", "勉強します"),
-            distractorTiles = listOf("日本語に", "食べます", "が"),
-            grammarNote = "SOV Order: Topic (私は) + Time (毎日) + Object (日本語を) + Verb (勉強します)."
-        ),
-        SentencePuzzle(
-            id = "p2",
-            level = JlptLevel.N5,
-            englishPrompt = "You must not take photos here.",
-            hindiPrompt = "यहाँ पर (ここで) फोटो को (写真を) खींचना (撮っては) मना है (いけません)।",
-            correctTiles = listOf("ここで", "写真を", "撮っては", "いけません"),
-            distractorTiles = listOf("ここに", "撮る", "ください"),
-            grammarNote = "Prohibition uses Te-form + はいけません (撮ってはいけません)."
-        ),
-        SentencePuzzle(
-            id = "p3",
-            level = JlptLevel.N4,
-            englishPrompt = "I have been to Japan before.",
-            hindiPrompt = "मैं जापान (日本へ) जा (行った) चुका हूँ (ことがあります)।",
-            correctTiles = listOf("日本へ", "行った", "ことが", "あります"),
-            distractorTiles = listOf("行く", "ことを", "います"),
-            grammarNote = "Past experience uses Past Plain (Ta-form: 行った) + ことがあります."
-        ),
-        SentencePuzzle(
-            id = "p4",
-            level = JlptLevel.N3,
-            englishPrompt = "Thanks to my teacher, I passed the exam.",
-            hindiPrompt = "शिक्षक की कृपा से (先生のおかげで) परीक्षा में (試験に) पास हो गया (合格しました)।",
-            correctTiles = listOf("先生の", "おかげで", "試験に", "合格しました"),
-            distractorTiles = listOf("せいで", "試験を", "合格する"),
-            grammarNote = "Positive gratitude uses Noun + のおかげで, and 合格する takes particle に!"
-        ),
-        SentencePuzzle(
-            id = "p5",
-            level = JlptLevel.N2,
-            englishPrompt = "We cannot compromise at all regarding quality.",
-            hindiPrompt = "गुणवत्ता के संबंध में (品質に関しては) बिल्कुल भी (一切) समझौता नहीं कर सकते (妥協できない)।",
-            correctTiles = listOf("品質に", "関しては", "一切", "妥協できない"),
-            distractorTiles = listOf("品質を", "おそらく", "妥協する"),
-            grammarNote = "〜に関しては means 'regarding/concerning', and 一切 pairs with a negative verb ('not at all')."
-        )
-    )
+    private fun parseWords(level: JlptLevel, raw: String): List<VocabItem> {
+        return raw.trim().lines().filter { it.isNotBlank() }.mapIndexed { idx, line ->
+            val p = line.split("|").map { it.trim() }
+            fun f(i: Int) = p.getOrElse(i) { "" }
+            VocabItem(
+                id = "${level.label}_${idx + 1}",
+                level = level,
+                type = wordTypeByCode[f(0)] ?: WordType.OTHER,
+                kanji = f(1), kana = f(2), romaji = f(3), en = f(4), hi = f(5),
+                exJp = f(6), exRomaji = f(7), exEn = f(8)
+            )
+        }
+    }
 
-    fun generateQuizQuestions(selectedLevel: JlptLevel?, mode: QuizMode): List<QuizQuestion> {
-        val questions = mutableListOf<QuizQuestion>()
-        val pool = if (selectedLevel == null) vocabList else vocabList.filter { it.level == selectedLevel }
-        val verbs = pool.filter { it.verbGroup != VerbGroup.NOT_VERB }.ifEmpty { vocabList.filter { it.verbGroup != VerbGroup.NOT_VERB } }
+    private val n5Words = """
+v1|食べる|たべる|taberu|to eat|खाना|毎朝パンを食べます。|Maiasa pan o tabemasu.|I eat bread every morning.
+v5|飲む|のむ|nomu|to drink|पीना|水を飲みます。|Mizu o nomimasu.|I drink water.
+v5|行く|いく|iku|to go|जाना|学校へ行きます。|Gakkou e ikimasu.|I go to school.
+vk|来る|くる|kuru|to come|आना|友達が来ます。|Tomodachi ga kimasu.|My friend is coming.
+v1|見る|みる|miru|to see / watch|देखना|テレビを見ます。|Terebi o mimasu.|I watch TV.
+v5|聞く|きく|kiku|to listen / ask|सुनना / पूछना|音楽を聞きます。|Ongaku o kikimasu.|I listen to music.
+v5|話す|はなす|hanasu|to speak|बोलना|日本語を話します。|Nihongo o hanashimasu.|I speak Japanese.
+v5|読む|よむ|yomu|to read|पढ़ना|本を読みます。|Hon o yomimasu.|I read a book.
+v5|書く|かく|kaku|to write|लिखना|名前を書きます。|Namae o kakimasu.|I write my name.
+v5|買う|かう|kau|to buy|खरीदना|パンを買います。|Pan o kaimasu.|I buy bread.
+vs|する|する|suru|to do|करना|宿題をします。|Shukudai o shimasu.|I do homework.
+vs|勉強する|べんきょうする|benkyou suru|to study|पढ़ाई करना|毎日勉強します。|Mainichi benkyou shimasu.|I study every day.
+v1|起きる|おきる|okiru|to wake up|उठना|六時に起きます。|Rokuji ni okimasu.|I wake up at six.
+v1|寝る|ねる|neru|to sleep|सोना|十一時に寝ます。|Juuichiji ni nemasu.|I sleep at eleven.
+v5|会う|あう|au|to meet|मिलना|友達に会います。|Tomodachi ni aimasu.|I meet a friend.
+v5|帰る|かえる|kaeru|to return home|घर लौटना|五時に帰ります。|Goji ni kaerimasu.|I go home at five.
+v5|入る|はいる|hairu|to enter|अंदर आना|部屋に入ります。|Heya ni hairimasu.|I enter the room.
+v1|出る|でる|deru|to go out|बाहर निकलना|八時に家を出ます。|Hachiji ni ie o demasu.|I leave home at eight.
+v5|待つ|まつ|matsu|to wait|इंतज़ार करना|駅で待ちます。|Eki de machimasu.|I wait at the station.
+v5|座る|すわる|suwaru|to sit|बैठना|ここに座ります。|Koko ni suwarimasu.|I sit here.
+v5|歩く|あるく|aruku|to walk|पैदल चलना|公園を歩きます。|Kouen o arukimasu.|I walk in the park.
+v5|走る|はしる|hashiru|to run|दौड़ना|朝、走ります。|Asa, hashirimasu.|I run in the morning.
+v5|働く|はたらく|hataraku|to work|काम करना|会社で働きます。|Kaisha de hatarakimasu.|I work at a company.
+v5|使う|つかう|tsukau|to use|इस्तेमाल करना|スマホを使います。|Sumaho o tsukaimasu.|I use a smartphone.
+v5|作る|つくる|tsukuru|to make|बनाना|料理を作ります。|Ryouri o tsukurimasu.|I cook a meal.
+v1|教える|おしえる|oshieru|to teach / tell|सिखाना / बताना|先生が教えます。|Sensei ga oshiemasu.|The teacher teaches.
+v1|開ける|あける|akeru|to open|खोलना|窓を開けます。|Mado o akemasu.|I open the window.
+v1|閉める|しめる|shimeru|to close|बंद करना|ドアを閉めます。|Doa o shimemasu.|I close the door.
+v5|分かる|わかる|wakaru|to understand|समझना|日本語が分かります。|Nihongo ga wakarimasu.|I understand Japanese.
+v5|遊ぶ|あそぶ|asobu|to play|खेलना / मौज करना|公園で遊びます。|Kouen de asobimasu.|I play in the park.
+v5|泳ぐ|およぐ|oyogu|to swim|तैरना|海で泳ぎます。|Umi de oyogimasu.|I swim in the sea.
+v5|乗る|のる|noru|to ride|सवार होना|電車に乗ります。|Densha ni norimasu.|I ride the train.
+n|私|わたし|watashi|I / me|मैं|私は学生です。|Watashi wa gakusei desu.|I am a student.
+n|先生|せんせい|sensei|teacher|शिक्षक|先生は優しいです。|Sensei wa yasashii desu.|The teacher is kind.
+n|学生|がくせい|gakusei|student|विद्यार्थी|彼は学生です。|Kare wa gakusei desu.|He is a student.
+n|友達|ともだち|tomodachi|friend|दोस्त|友達と遊びます。|Tomodachi to asobimasu.|I play with a friend.
+n|家族|かぞく|kazoku|family|परिवार|家族は四人です。|Kazoku wa yonin desu.|My family has four people.
+n|水|みず|mizu|water|पानी|水をください。|Mizu o kudasai.|Water, please.
+n|お茶|おちゃ|ocha|tea|चाय|お茶を飲みます。|Ocha o nomimasu.|I drink tea.
+n|魚|さかな|sakana|fish|मछली|魚が好きです。|Sakana ga suki desu.|I like fish.
+n|肉|にく|niku|meat|मांस|肉を食べません。|Niku o tabemasen.|I don't eat meat.
+n|駅|えき|eki|station|स्टेशन|駅は近いです。|Eki wa chikai desu.|The station is near.
+n|電車|でんしゃ|densha|train|ट्रेन|電車で行きます。|Densha de ikimasu.|I go by train.
+n|学校|がっこう|gakkou|school|स्कूल|学校は九時です。|Gakkou wa kuji desu.|School is at nine.
+n|会社|かいしゃ|kaisha|company|कंपनी|会社は東京です。|Kaisha wa Toukyou desu.|The company is in Tokyo.
+n|本|ほん|hon|book|किताब|この本は面白いです。|Kono hon wa omoshiroi desu.|This book is interesting.
+n|犬|いぬ|inu|dog|कुत्ता|犬が走ります。|Inu ga hashirimasu.|The dog runs.
+n|猫|ねこ|neko|cat|बिल्ली|猫は可愛いです。|Neko wa kawaii desu.|The cat is cute.
+n|日本|にほん|nihon|Japan|जापान|日本へ行きたいです。|Nihon e ikitai desu.|I want to go to Japan.
+n|今日|きょう|kyou|today|आज|今日は暑いです。|Kyou wa atsui desu.|Today is hot.
+n|明日|あした|ashita|tomorrow|कल (आने वाला)|明日、会いましょう。|Ashita, aimashou.|Let's meet tomorrow.
+n|昨日|きのう|kinou|yesterday|कल (बीता हुआ)|昨日は雨でした。|Kinou wa ame deshita.|Yesterday it rained.
+n|毎日|まいにち|mainichi|every day|हर दिन|毎日歩きます。|Mainichi arukimasu.|I walk every day.
+n|時間|じかん|jikan|time|समय|時間がありません。|Jikan ga arimasen.|I have no time.
+n|天気|てんき|tenki|weather|मौसम|今日の天気はいいです。|Kyou no tenki wa ii desu.|Today's weather is good.
+n|車|くるま|kuruma|car|गाड़ी|車を買いました。|Kuruma o kaimashita.|I bought a car.
+n|名前|なまえ|namae|name|नाम|お名前は何ですか。|Onamae wa nan desu ka.|What is your name?
+n|お金|おかね|okane|money|पैसा|お金がありません。|Okane ga arimasen.|I have no money.
+n|家|いえ|ie|house / home|घर|大きい家です。|Ookii ie desu.|It is a big house.
+n|部屋|へや|heya|room|कमरा|部屋がきれいです。|Heya ga kirei desu.|The room is clean.
+n|手|て|te|hand|हाथ|手を洗います。|Te o araimasu.|I wash my hands.
+n|目|め|me|eye|आँख|目が痛いです。|Me ga itai desu.|My eyes hurt.
+n|朝|あさ|asa|morning|सुबह|朝ご飯を食べます。|Asagohan o tabemasu.|I eat breakfast.
+n|雨|あめ|ame|rain|बारिश|雨が降っています。|Ame ga futte imasu.|It is raining.
+n|山|やま|yama|mountain|पहाड़|山に登ります。|Yama ni noborimasu.|I climb a mountain.
+n|店|みせ|mise|shop|दुकान|店は十時に開きます。|Mise wa juuji ni akimasu.|The shop opens at ten.
+adji|大きい|おおきい|ookii|big|बड़ा|大きい犬です。|Ookii inu desu.|It is a big dog.
+adji|小さい|ちいさい|chiisai|small|छोटा|小さい猫です。|Chiisai neko desu.|It is a small cat.
+adji|新しい|あたらしい|atarashii|new|नया|新しい車です。|Atarashii kuruma desu.|It is a new car.
+adji|古い|ふるい|furui|old (things)|पुराना|古い本です。|Furui hon desu.|It is an old book.
+adji|高い|たかい|takai|expensive / tall|महँगा / ऊँचा|この店は高いです。|Kono mise wa takai desu.|This shop is expensive.
+adji|安い|やすい|yasui|cheap|सस्ता|この本は安いです。|Kono hon wa yasui desu.|This book is cheap.
+adji|おいしい|おいしい|oishii|delicious|स्वादिष्ट|魚はおいしいです。|Sakana wa oishii desu.|The fish is delicious.
+adji|楽しい|たのしい|tanoshii|fun|मज़ेदार|旅行は楽しいです。|Ryokou wa tanoshii desu.|The trip is fun.
+adji|忙しい|いそがしい|isogashii|busy|व्यस्त|今日は忙しいです。|Kyou wa isogashii desu.|I am busy today.
+adji|暑い|あつい|atsui|hot (weather)|गर्म (मौसम)|夏は暑いです。|Natsu wa atsui desu.|Summer is hot.
+adji|寒い|さむい|samui|cold (weather)|ठंडा (मौसम)|冬は寒いです。|Fuyu wa samui desu.|Winter is cold.
+adji|いい|いい|ii|good|अच्छा|いい天気ですね。|Ii tenki desu ne.|Nice weather, isn't it?
+adjna|好き|すき|suki|like / favorite|पसंद|猫が好きです。|Neko ga suki desu.|I like cats.
+adjna|元気|げんき|genki|healthy / energetic|स्वस्थ / ऊर्जावान|はい、元気です。|Hai, genki desu.|Yes, I'm fine.
+adjna|きれい|きれい|kirei|pretty / clean|सुंदर / साफ़|部屋はきれいです。|Heya wa kirei desu.|The room is clean.
+adjna|静か|しずか|shizuka|quiet|शांत|図書館は静かです。|Toshokan wa shizuka desu.|The library is quiet.
+adjna|有名|ゆうめい|yuumei|famous|मशहूर|有名な店です。|Yuumei na mise desu.|It is a famous shop.
+adjna|上手|じょうず|jouzu|skilled|कुशल|彼は上手です。|Kare wa jouzu desu.|He is good at it.
+x|ありがとう|ありがとう|arigatou|thank you|धन्यवाद|どうもありがとう。|Doumo arigatou.|Thank you very much.
+x|すみません|すみません|sumimasen|excuse me / sorry|माफ़ कीजिए|すみません、駅はどこですか。|Sumimasen, eki wa doko desu ka.|Excuse me, where is the station?
+x|おはよう|おはよう|ohayou|good morning|सुप्रभात|おはようございます。|Ohayou gozaimasu.|Good morning.
+x|こんにちは|こんにちは|konnichiwa|hello|नमस्ते|こんにちは、元気ですか。|Konnichiwa, genki desu ka.|Hello, how are you?
+x|お願いします|おねがいします|onegaishimasu|please|कृपया|水をお願いします。|Mizu o onegaishimasu.|Water, please.
+x|とても|とても|totemo|very|बहुत|とても高いです。|Totemo takai desu.|It is very expensive.
+x|もう一度|もういちど|mou ichido|once more|एक बार और|もう一度お願いします。|Mou ichido onegaishimasu.|Once more, please.
+"""
 
-        // 1. Conjugation Drills
-        if (mode == QuizMode.MIXED || mode == QuizMode.CONJUGATION) {
-            verbs.forEach { verb ->
-                val forms = VerbConjugator.conjugate(verb)
-                forms.drop(1).shuffled().take(3).forEach { targetForm ->
-                    val wrongOptions = forms.filter { it.japanese != targetForm.japanese }.shuffled().take(3).map { it.japanese }
-                    val allOpts = (wrongOptions + targetForm.japanese).shuffled()
-                    questions.add(
-                        QuizQuestion(
-                            prompt = "Conjugate 「${verb.kanji}」 (${verb.kana} - ${verb.meaning}) into ${targetForm.formName}:",
-                            subPrompt = "${verb.verbGroup.label} • ${verb.level.label}",
-                            options = allOpts,
-                            correctIndex = allOpts.indexOf(targetForm.japanese),
-                            explanation = "${targetForm.formName} of ${verb.kanji} is 「${targetForm.japanese}」 (${targetForm.reading}). Hint: ${targetForm.usageHint}",
-                            level = verb.level,
-                            audioText = targetForm.japanese
-                        )
+    private val n4Words = """
+v1|続ける|つづける|tsuzukeru|to continue|जारी रखना|勉強を続けます。|Benkyou o tsuzukemasu.|I continue studying.
+v1|決める|きめる|kimeru|to decide|तय करना|目標を決めました。|Mokuhyou o kimemashita.|I decided on a goal.
+v1|調べる|しらべる|shiraberu|to look up|खोजना / जाँचना|辞書で調べます。|Jisho de shirabemasu.|I look it up in a dictionary.
+v5|選ぶ|えらぶ|erabu|to choose|चुनना|好きな色を選びます。|Suki na iro o erabimasu.|I choose a favorite color.
+v5|直す|なおす|naosu|to fix|ठीक करना|間違いを直します。|Machigai o naoshimasu.|I correct the mistakes.
+vs|約束する|やくそくする|yakusoku suru|to promise|वादा करना|明日会うと約束しました。|Ashita au to yakusoku shimashita.|I promised to meet tomorrow.
+vs|準備する|じゅんびする|junbi suru|to prepare|तैयारी करना|試験の準備をします。|Shiken no junbi o shimasu.|I prepare for the exam.
+vs|心配する|しんぱいする|shinpai suru|to worry|चिंता करना|母が心配します。|Haha ga shinpai shimasu.|My mother worries.
+vs|運転する|うんてんする|unten suru|to drive|गाड़ी चलाना|車を運転します。|Kuruma o unten shimasu.|I drive a car.
+vs|旅行する|りょこうする|ryokou suru|to travel|यात्रा करना|日本を旅行します。|Nihon o ryokou shimasu.|I travel around Japan.
+v1|覚える|おぼえる|oboeru|to memorize|याद करना|単語を覚えます。|Tango o oboemasu.|I memorize words.
+v1|忘れる|わすれる|wasureru|to forget|भूल जाना|宿題を忘れました。|Shukudai o wasuremashita.|I forgot my homework.
+v5|送る|おくる|okuru|to send|भेजना|メールを送ります。|Meeru o okurimasu.|I send an email.
+v5|思う|おもう|omou|to think|सोचना / लगना|いいと思います。|Ii to omoimasu.|I think it's good.
+v5|持つ|もつ|motsu|to hold / have|पकड़ना / रखना|かばんを持ちます。|Kaban o mochimasu.|I hold a bag.
+v5|手伝う|てつだう|tetsudau|to help|हाथ बँटाना|母を手伝います。|Haha o tetsudaimasu.|I help my mother.
+v5|終わる|おわる|owaru|to end|खत्म होना|授業が終わります。|Jugyou ga owarimasu.|Class ends.
+v5|始まる|はじまる|hajimaru|to begin|शुरू होना|映画が始まります。|Eiga ga hajimarimasu.|The movie begins.
+n|経験|けいけん|keiken|experience|अनुभव|いい経験でした。|Ii keiken deshita.|It was a good experience.
+n|予定|よてい|yotei|plan / schedule|योजना|明日の予定は何ですか。|Ashita no yotei wa nan desu ka.|What are your plans for tomorrow?
+n|意味|いみ|imi|meaning|मतलब|この言葉の意味は何ですか。|Kono kotoba no imi wa nan desu ka.|What does this word mean?
+n|理由|りゆう|riyuu|reason|कारण|理由を教えてください。|Riyuu o oshiete kudasai.|Please tell me the reason.
+n|試験|しけん|shiken|exam|परीक्षा|来週、試験があります。|Raishuu, shiken ga arimasu.|I have an exam next week.
+n|会議|かいぎ|kaigi|meeting|बैठक|会議は三時からです。|Kaigi wa sanji kara desu.|The meeting is from three.
+n|質問|しつもん|shitsumon|question|सवाल|質問がありますか。|Shitsumon ga arimasu ka.|Do you have any questions?
+n|意見|いけん|iken|opinion|राय|あなたの意見を聞きたいです。|Anata no iken o kikitai desu.|I want to hear your opinion.
+n|習慣|しゅうかん|shuukan|habit|आदत|早く起きる習慣があります。|Hayaku okiru shuukan ga arimasu.|I have a habit of waking up early.
+adji|難しい|むずかしい|muzukashii|difficult|मुश्किल|日本語は難しいです。|Nihongo wa muzukashii desu.|Japanese is difficult.
+adji|易しい|やさしい|yasashii|easy|आसान|この問題は易しいです。|Kono mondai wa yasashii desu.|This problem is easy.
+adji|危ない|あぶない|abunai|dangerous|ख़तरनाक|この道は危ないです。|Kono michi wa abunai desu.|This road is dangerous.
+adji|嬉しい|うれしい|ureshii|happy|खुश|合格して嬉しいです。|Goukaku shite ureshii desu.|I'm happy I passed.
+adjna|大切|たいせつ|taisetsu|important|अहम / प्रिय|家族は大切です。|Kazoku wa taisetsu desu.|Family is important.
+adjna|大変|たいへん|taihen|tough / serious|कठिन|仕事は大変です。|Shigoto wa taihen desu.|Work is tough.
+adjna|便利|べんり|benri|convenient|सुविधाजनक|このアプリは便利です。|Kono apuri wa benri desu.|This app is convenient.
+x|たぶん|たぶん|tabun|probably|शायद|たぶん行きます。|Tabun ikimasu.|I'll probably go.
+x|必ず|かならず|kanarazu|without fail|ज़रूर|必ず来てください。|Kanarazu kite kudasai.|Please come without fail.
+"""
+
+    private val n3Words = """
+vs|解決する|かいけつする|kaiketsu suru|to solve|समाधान करना|問題を解決します。|Mondai o kaiketsu shimasu.|I solve the problem.
+v1|認める|みとめる|mitomeru|to admit / recognize|स्वीकार करना|ミスを認めます。|Misu o mitomemasu.|I admit the mistake.
+v5|守る|まもる|mamoru|to protect / obey|रक्षा करना / पालन करना|ルールを守ります。|Ruuru o mamorimasu.|I follow the rules.
+vs|比較する|ひかくする|hikaku suru|to compare|तुलना करना|値段を比較します。|Nedan o hikaku shimasu.|I compare prices.
+vs|参加する|さんかする|sanka suru|to participate|हिस्सा लेना|会議に参加します。|Kaigi ni sanka shimasu.|I take part in the meeting.
+vs|紹介する|しょうかいする|shoukai suru|to introduce|परिचय कराना|友達を紹介します。|Tomodachi o shoukai shimasu.|I introduce a friend.
+vs|説明する|せつめいする|setsumei suru|to explain|समझाना|ルールを説明します。|Ruuru o setsumei shimasu.|I explain the rules.
+v1|伝える|つたえる|tsutaeru|to convey|पहुँचाना / बताना|気持ちを伝えます。|Kimochi o tsutaemasu.|I convey my feelings.
+v1|集める|あつめる|atsumeru|to collect|इकट्ठा करना|情報を集めます。|Jouhou o atsumemasu.|I collect information.
+v5|変わる|かわる|kawaru|to change|बदलना|天気が変わります。|Tenki ga kawarimasu.|The weather changes.
+v1|育てる|そだてる|sodateru|to raise / grow|पालना / उगाना|花を育てます。|Hana o sodatemasu.|I grow flowers.
+n|影響|えいきょう|eikyou|influence|प्रभाव|天気の影響を受けます。|Tenki no eikyou o ukemasu.|I am affected by the weather.
+n|努力|どりょく|doryoku|effort|प्रयास|努力は大切です。|Doryoku wa taisetsu desu.|Effort is important.
+n|情報|じょうほう|jouhou|information|जानकारी|情報が足りません。|Jouhou ga tarimasen.|The information is not enough.
+n|社会|しゃかい|shakai|society|समाज|社会は変わっています。|Shakai wa kawatte imasu.|Society is changing.
+n|文化|ぶんか|bunka|culture|संस्कृति|日本の文化が好きです。|Nihon no bunka ga suki desu.|I like Japanese culture.
+n|目的|もくてき|mokuteki|purpose|उद्देश्य|目的は何ですか。|Mokuteki wa nan desu ka.|What is the purpose?
+n|結果|けっか|kekka|result|नतीजा|結果を待ちます。|Kekka o machimasu.|I wait for the result.
+n|関係|かんけい|kankei|relationship|संबंध|二人は関係があります。|Futari wa kankei ga arimasu.|The two are related.
+n|環境|かんきょう|kankyou|environment|पर्यावरण|環境を守りましょう。|Kankyou o mamorimashou.|Let's protect the environment.
+adji|厳しい|きびしい|kibishii|strict|सख़्त|先生は厳しいです。|Sensei wa kibishii desu.|The teacher is strict.
+adji|珍しい|めずらしい|mezurashii|rare|दुर्लभ|珍しい花ですね。|Mezurashii hana desu ne.|It's a rare flower.
+adjna|必要|ひつよう|hitsuyou|necessary|ज़रूरी|お金が必要です。|Okane ga hitsuyou desu.|Money is necessary.
+adjna|自然|しぜん|shizen|natural|प्राकृतिक|自然な日本語です。|Shizen na Nihongo desu.|It is natural Japanese.
+adjna|正確|せいかく|seikaku|accurate|सटीक|正確な時間を教えて。|Seikaku na jikan o oshiete.|Tell me the exact time.
+x|ほとんど|ほとんど|hotondo|almost all|लगभग सारा|ほとんど終わりました。|Hotondo owarimashita.|It's almost finished.
+x|実は|じつは|jitsu wa|actually|असल में|実は、日本語が苦手です。|Jitsu wa, Nihongo ga nigate desu.|Actually, I'm not good at Japanese.
+"""
+
+    private val n2Words = """
+vs|把握する|はあくする|haaku suru|to grasp|पूरी तरह समझना|状況を把握します。|Joukyou o haaku shimasu.|I grasp the situation.
+vs|妥協する|だきょうする|dakyou suru|to compromise|समझौता करना|品質は妥協できません。|Hinshitsu wa dakyou dekimasen.|We can't compromise on quality.
+vs|貢献する|こうけんする|kouken suru|to contribute|योगदान देना|社会に貢献します。|Shakai ni kouken shimasu.|I contribute to society.
+vs|克服する|こくふくする|kokufuku suru|to overcome|काबू पाना|弱点を克服します。|Jakuten o kokufuku shimasu.|I overcome my weakness.
+vs|主張する|しゅちょうする|shuchou suru|to insist / assert|ज़ोर देना|自分の意見を主張します。|Jibun no iken o shuchou shimasu.|I assert my opinion.
+vs|維持する|いじする|iji suru|to maintain|बनाए रखना|健康を維持します。|Kenkou o iji shimasu.|I maintain my health.
+vs|検討する|けんとうする|kentou suru|to consider|विचार करना|案を検討します。|An o kentou shimasu.|I consider the proposal.
+v1|抱える|かかえる|kakaeru|to hold / be burdened with|संभालना / बोझ उठाना|問題を抱えています。|Mondai o kakaete imasu.|I am dealing with a problem.
+v1|求める|もとめる|motomeru|to seek|माँगना / तलाशना|助けを求めます。|Tasuke o motomemasu.|I ask for help.
+v5|招く|まねく|maneku|to invite|आमंत्रित करना|友達を招きます。|Tomodachi o manekimasu.|I invite a friend.
+n|矛盾|むじゅん|mujun|contradiction|विरोधाभास|話に矛盾があります。|Hanashi ni mujun ga arimasu.|There is a contradiction in the story.
+n|傾向|けいこう|keikou|tendency / trend|रुझान|増える傾向にあります。|Fueru keikou ni arimasu.|There is a trend of increasing.
+n|課題|かだい|kadai|task / issue|चुनौती / असाइनमेंट|課題が多いです。|Kadai ga ooi desu.|There are many issues.
+n|責任|せきにん|sekinin|responsibility|ज़िम्मेदारी|責任を取ります。|Sekinin o torimasu.|I take responsibility.
+n|成果|せいか|seika|achievement|उपलब्धि|努力の成果が出ました。|Doryoku no seika ga demashita.|My effort paid off.
+n|条件|じょうけん|jouken|condition|शर्त|条件があります。|Jouken ga arimasu.|There are conditions.
+n|状況|じょうきょう|joukyou|situation|हालात|状況は変わりました。|Joukyou wa kawarimashita.|The situation changed.
+adji|著しい|いちじるしい|ichijirushii|remarkable|उल्लेखनीय|著しい成長ですね。|Ichijirushii seichou desu ne.|It's remarkable growth.
+adji|鋭い|するどい|surudoi|sharp|तीक्ष्ण|鋭い意見です。|Surudoi iken desu.|It's a sharp opinion.
+adjna|適切|てきせつ|tekisetsu|appropriate|उचित|適切な方法です。|Tekisetsu na houhou desu.|It's an appropriate method.
+adjna|明らか|あきらか|akiraka|obvious|स्पष्ट|結果は明らかです。|Kekka wa akiraka desu.|The result is obvious.
+adjna|深刻|しんこく|shinkoku|serious|गंभीर|深刻な問題です。|Shinkoku na mondai desu.|It's a serious problem.
+x|あくまで|あくまで|akumade|to the end / only|आख़िर तक / केवल|あくまで例です。|Akumade rei desu.|It's just an example.
+x|むしろ|むしろ|mushiro|rather|बल्कि|むしろ便利です。|Mushiro benri desu.|It's rather convenient.
+x|大幅に|おおはばに|oohaba ni|drastically|काफ़ी हद तक|大幅に増えました。|Oohaba ni fuemashita.|It increased drastically.
+"""
+
+    private val n1Words = """
+adjna|不可欠|ふかけつ|fukaketsu|indispensable|अनिवार्य|学習は不可欠です。|Gakushuu wa fukaketsu desu.|Learning is indispensable.
+adjna|画期的|かっきてき|kakkiteki|groundbreaking|क्रांतिकारी|画期的な方法です。|Kakkiteki na houhou desu.|It's a groundbreaking method.
+adjna|顕著|けんちょ|kencho|striking / marked|स्पष्ट रूप से दिखने वाला|顕著な違いがあります。|Kencho na chigai ga arimasu.|There's a striking difference.
+adjna|斬新|ざんしん|zanshin|novel|नवीन|斬新なアイデアです。|Zanshin na aidea desu.|It's a novel idea.
+adjna|曖昧|あいまい|aimai|ambiguous|अस्पष्ट|曖昧な答えです。|Aimai na kotae desu.|It's an ambiguous answer.
+adji|煩わしい|わずらわしい|wazurawashii|annoying|झंझट भरा|手続きが煩わしいです。|Tetsuzuki ga wazurawashii desu.|The procedure is a hassle.
+vs|網羅する|もうらする|moura suru|to cover completely|पूरा कवर करना|全体を網羅します。|Zentai o moura shimasu.|It covers everything.
+vs|凌駕する|りょうがする|ryouga suru|to surpass|पीछे छोड़ना|予想を凌駕します。|Yosou o ryouga shimasu.|It surpasses expectations.
+vs|促進する|そくしんする|sokushin suru|to promote|बढ़ावा देना|成長を促進します。|Seichou o sokushin shimasu.|It promotes growth.
+vs|遂行する|すいこうする|suikou suru|to carry out|पूरा करना|任務を遂行します。|Ninmu o suikou shimasu.|I carry out the mission.
+v5|覆す|くつがえす|kutsugaesu|to overturn|पलट देना|常識を覆します。|Joushiki o kutsugaeshimasu.|It overturns common sense.
+v1|妨げる|さまたげる|samatageru|to hinder|बाधा डालना|進歩を妨げます。|Shinpo o samatagemasu.|It hinders progress.
+n|試行錯誤|しこうさくご|shikou sakugo|trial and error|प्रयास और भूल|試行錯誤を重ねます。|Shikou sakugo o kasanemasu.|I go through trial and error.
+n|懸念|けねん|kenen|concern|चिंता / आशंका|懸念が残ります。|Kenen ga nokorimasu.|Concerns remain.
+n|概念|がいねん|gainen|concept|अवधारणा|新しい概念を学びます。|Atarashii gainen o manabimasu.|I learn a new concept.
+n|姿勢|しせい|shisei|attitude / posture|रवैया / मुद्रा|前向きな姿勢が大切です。|Maemuki na shisei ga taisetsu desu.|A positive attitude is important.
+n|妥当性|だとうせい|datousei|validity|वैधता|結果の妥当性を調べます。|Kekka no datousei o shirabemasu.|I examine the validity of the results.
+x|あえて|あえて|aete|dare to / deliberately|जानबूझकर|あえて言います。|Aete iimasu.|I'll say it deliberately.
+x|依然として|いぜんとして|izen toshite|still|अभी भी|依然として問題です。|Izen toshite mondai desu.|It is still a problem.
+x|極めて|きわめて|kiwamete|extremely|अत्यंत|極めて重要です。|Kiwamete juuyou desu.|It is extremely important.
+x|概して|がいして|gaishite|generally|आमतौर पर|概して良好です。|Gaishite ryoukou desu.|Overall, it is good.
+"""
+
+    val vocab: List<VocabItem> by lazy {
+        parseWords(JlptLevel.N5, n5Words) +
+            parseWords(JlptLevel.N4, n4Words) +
+            parseWords(JlptLevel.N3, n3Words) +
+            parseWords(JlptLevel.N2, n2Words) +
+            parseWords(JlptLevel.N1, n1Words)
+    }
+
+    private val wordsByLevel: Map<JlptLevel, List<VocabItem>> by lazy { vocab.groupBy { it.level } }
+
+    fun words(level: JlptLevel): List<VocabItem> = wordsByLevel[level].orEmpty()
+
+    // ---------------------------------------------------------------
+    // SENTENCES  (level|japanese|romaji|english|hindi)
+    // ---------------------------------------------------------------
+    private val sentenceData = """
+N5|はじめまして。|Hajimemashite.|Nice to meet you.|पहली बार मिल रहे हैं, नमस्ते।
+N5|私の名前はリシです。|Watashi no namae wa Rishi desu.|My name is Rishi.|मेरा नाम ऋषि है।
+N5|インドから来ました。|Indo kara kimashita.|I came from India.|मैं भारत से आया हूँ।
+N5|これはいくらですか。|Kore wa ikura desu ka.|How much is this?|यह कितने का है?
+N5|トイレはどこですか。|Toire wa doko desu ka.|Where is the toilet?|टॉयलेट कहाँ है?
+N5|水をください。|Mizu o kudasai.|Please give me water.|मुझे पानी दीजिए।
+N5|もう一度言ってください。|Mou ichido itte kudasai.|Please say it once more.|कृपया एक बार और बोलिए।
+N5|ゆっくり話してください。|Yukkuri hanashite kudasai.|Please speak slowly.|कृपया धीरे बोलिए।
+N5|日本語が少し分かります。|Nihongo ga sukoshi wakarimasu.|I understand a little Japanese.|मैं थोड़ी जापानी समझता हूँ।
+N5|駅まで歩いて十分です。|Eki made aruite juppun desu.|It's ten minutes on foot to the station.|स्टेशन तक पैदल दस मिनट लगते हैं।
+N5|毎朝六時に起きます。|Maiasa rokuji ni okimasu.|I wake up at six every morning.|मैं हर सुबह छह बजे उठता हूँ।
+N5|明日、友達と映画を見ます。|Ashita, tomodachi to eiga o mimasu.|I will watch a movie with a friend tomorrow.|कल दोस्त के साथ फ़िल्म देखूँगा।
+N4|日本に行ったことがあります。|Nihon ni itta koto ga arimasu.|I have been to Japan.|मैं जापान जा चुका हूँ।
+N4|毎日勉強しなければなりません。|Mainichi benkyou shinakereba narimasen.|I have to study every day.|रोज़ पढ़ना ही पड़ेगा।
+N4|この漢字の読み方を教えてください。|Kono kanji no yomikata o oshiete kudasai.|Please tell me how to read this kanji.|इस कांजी को कैसे पढ़ें, बताइए।
+N4|雨が降りそうです。|Ame ga furisou desu.|It looks like it's going to rain.|बारिश होने वाली लगती है।
+N4|友達に手伝ってもらいました。|Tomodachi ni tetsudatte moraimashita.|A friend helped me.|दोस्त से मदद मिली।
+N4|窓を開けてもいいですか。|Mado o akete mo ii desu ka.|May I open the window?|क्या मैं खिड़की खोल सकता हूँ?
+N4|ここで写真を撮ってはいけません。|Koko de shashin o totte wa ikemasen.|You must not take photos here.|यहाँ फोटो खींचना मना है।
+N4|将来、日本で働きたいです。|Shourai, Nihon de hatarakitai desu.|I want to work in Japan in the future.|भविष्य में जापान में काम करना चाहता हूँ।
+N4|時間があれば、手伝います。|Jikan ga areba, tetsudaimasu.|If I have time, I will help.|समय हुआ तो मदद करूँगा।
+N4|彼は日本語を話すのが上手です。|Kare wa Nihongo o hanasu no ga jouzu desu.|He is good at speaking Japanese.|वह जापानी बोलने में अच्छा है।
+N3|努力すれば、必ず上手になります。|Doryoku sureba, kanarazu jouzu ni narimasu.|If you try, you will surely improve.|मेहनत करो तो ज़रूर बेहतर हो जाओगे।
+N3|彼が来るかどうか分かりません。|Kare ga kuru ka dou ka wakarimasen.|I don't know whether he will come.|पता नहीं वह आएगा या नहीं।
+N3|説明を聞いたのに、よく分かりませんでした。|Setsumei o kiita noni, yoku wakarimasen deshita.|Even though I heard the explanation, I didn't understand.|समझाने के बावजूद ठीक से समझ नहीं आया।
+N3|先生のおかげで、試験に合格しました。|Sensei no okage de, shiken ni goukaku shimashita.|Thanks to my teacher, I passed the exam.|शिक्षक की वजह से परीक्षा पास हुआ।
+N3|忙しいにもかかわらず、来てくれました。|Isogashii ni mo kakawarazu, kite kuremashita.|Despite being busy, he came.|व्यस्त होने के बावजूद वह आया।
+N3|情報を集めてから、決めます。|Jouhou o atsumete kara, kimemasu.|I will decide after collecting information.|जानकारी जुटाने के बाद तय करूँगा।
+N3|この問題は簡単というわけではありません。|Kono mondai wa kantan to iu wake dewa arimasen.|This problem isn't necessarily easy.|ऐसा नहीं कि यह समस्या आसान है।
+N3|約束した以上、守らなければなりません。|Yakusoku shita ijou, mamoranakereba narimasen.|Since I promised, I must keep it.|वादा किया है तो निभाना ही होगा।
+N3|天気予報によると、明日は雨だそうです。|Tenki yohou ni yoru to, ashita wa ame da sou desu.|According to the forecast, it will rain tomorrow.|मौसम पूर्वानुमान के अनुसार कल बारिश होगी।
+N2|状況を把握した上で、判断します。|Joukyou o haaku shita ue de, handan shimasu.|I will judge after grasping the situation.|हालात समझने के बाद फ़ैसला करूँगा।
+N2|品質に関しては、一切妥協できません。|Hinshitsu ni kanshite wa, issai dakyou dekimasen.|We can't compromise at all on quality.|गुणवत्ता पर कोई समझौता नहीं।
+N2|努力に応じて、成果が出ます。|Doryoku ni oujite, seika ga demasu.|Results come in proportion to effort.|मेहनत के अनुसार नतीजे मिलते हैं।
+N2|彼の説明は矛盾だらけです。|Kare no setsumei wa mujun darake desu.|His explanation is full of contradictions.|उसकी बातों में विरोधाभास ही विरोधाभास हैं।
+N2|忙しくても、運動を続けるべきです。|Isogashikute mo, undou o tsuzukeru beki desu.|Even if busy, you should keep exercising.|व्यस्त हों तो भी कसरत जारी रखनी चाहिए।
+N2|この計画は実現するとは限りません。|Kono keikaku wa jitsugen suru to wa kagirimasen.|This plan won't necessarily come true.|ज़रूरी नहीं कि यह योजना सफल हो।
+N2|調査の結果、問題点が明らかになった。|Chousa no kekka, mondaiten ga akiraka ni natta.|As a result of the survey, the problems became clear.|जाँच के नतीजे में समस्याएँ साफ़ हो गईं।
+N2|彼女は笑顔を見せつつ、話を続けた。|Kanojo wa egao o misetsutsu, hanashi o tsuzuketa.|She continued talking while smiling.|वह मुस्कुराते हुए बात करती रही।
+N1|予算不足のため、計画の縮小を余儀なくされた。|Yosan busoku no tame, keikaku no shukushou o yoginaku sareta.|Due to a budget shortage, we were forced to scale down the plan.|बजट की कमी से योजना छोटी करनी पड़ी।
+N1|継続的な学習は成長に不可欠である。|Keizokuteki na gakushuu wa seichou ni fukaketsu de aru.|Continuous learning is essential for growth.|लगातार सीखना विकास के लिए अनिवार्य है।
+N1|事実に即して判断すべきだ。|Jijitsu ni sokushite handan subeki da.|We should judge based on facts.|तथ्यों के अनुरूप फ़ैसला करना चाहिए।
+N1|彼の功績は称賛に値する。|Kare no kouseki wa shousan ni atai suru.|His achievements deserve praise.|उसकी उपलब्धियाँ प्रशंसा के योग्य हैं।
+N1|忙しさのあまり、食事を忘れてしまった。|Isogashisa no amari, shokuji o wasurete shimatta.|I was so busy that I forgot to eat.|इतना व्यस्त था कि खाना भूल गया।
+N1|試行錯誤を重ねた末、ようやく完成した。|Shikou sakugo o kasaneta sue, youyaku kansei shita.|After repeated trial and error, it was finally completed.|बार-बार प्रयास के बाद आख़िरकार पूरा हुआ।
+N1|彼は謝るどころか、逆に怒り出した。|Kare wa ayamaru dokoro ka, gyaku ni okoridashita.|Far from apologizing, he got angry instead.|माफ़ी माँगना तो दूर, उल्टा गुस्सा हो गया।
+N1|この問題は一概には言えない。|Kono mondai wa ichigai ni wa ienai.|You can't generalize about this issue.|इस बारे में एकदम से कुछ नहीं कह सकते।
+"""
+
+    private val levelByLabel: Map<String, JlptLevel> by lazy { JlptLevel.entries.associateBy { it.label } }
+
+    private val allSentences: List<SentenceItem> by lazy {
+        sentenceData.trim().lines().filter { it.isNotBlank() }.map { line ->
+            val p = line.split("|").map { it.trim() }
+            SentenceItem(levelByLabel[p[0]] ?: JlptLevel.N5, p[1], p[2], p[3], p[4])
+        }
+    }
+
+    fun sentences(level: JlptLevel): List<SentenceItem> = allSentences.filter { it.level == level }
+
+    // ---------------------------------------------------------------
+    // GRAMMAR  (level|title|structure|explanation|hindi tip|example|example romaji|example english)
+    // ---------------------------------------------------------------
+    private val grammarData = """
+N5|Particles: は を に で の|Topic は Place で Object を Verb|Particles come AFTER the noun, just like postpositions in Hindi.|は = तो / के बारे में, を = को, に = में / पर (target), で = में / से (place or tool), の = का / की / के|私は図書館で本を読みます。|Watashi wa toshokan de hon o yomimasu.|I read a book at the library.
+N5|Word order (SOV)|Subject – Object – Verb|The verb always goes at the END of the sentence, exactly like Hindi.|मैं सेब खाता हूँ = 私は りんごを 食べます|私はりんごを食べます。|Watashi wa ringo o tabemasu.|I eat an apple.
+N5|です and ます (polite style)|Noun + です / Verb stem + ます|です means is / am / are. ます makes a verb polite.|です = है / हूँ, ます = polite verb ending|私は学生です。|Watashi wa gakusei desu.|I am a student.
+N5|〜ています (doing now)|Verb て-form + います|Shows an action happening now or a continuing state.|रहा हूँ / रहा है (खा रहा हूँ)|今、勉強しています。|Ima, benkyou shite imasu.|I am studying now.
+N5|〜たいです (want to)|Verb stem + たいです|Say what you want to do.|करना चाहता हूँ|日本へ行きたいです。|Nihon e ikitai desu.|I want to go to Japan.
+N4|〜てください / 〜てもいいですか|Verb て-form + ください|Ask for a favor or ask permission.|कृपया ... कीजिए / क्या मैं ... सकता हूँ|ここに名前を書いてください。|Koko ni namae o kaite kudasai.|Please write your name here.
+N4|〜なければならない (must)|Verb ない-form (without い) + ければならない|Express an obligation.|करना ही पड़ेगा|毎日勉強しなければなりません。|Mainichi benkyou shinakereba narimasen.|I have to study every day.
+N4|〜たことがある (have done)|Verb た-form + ことがある|Talk about past experience.|... चुका हूँ|日本に行ったことがあります。|Nihon ni itta koto ga arimasu.|I have been to Japan.
+N4|〜てあげる / くれる / もらう|Verb て-form + あげる / くれる / もらう|Giving and receiving favors. くれる always points toward ME.|くれる = मेरे लिए किया, もらう = मुझे मिला|友達が教えてくれました。|Tomodachi ga oshiete kuremashita.|My friend taught me (kindly).
+N4|〜と思います (I think)|Plain form + と思います|Soft way to give an opinion.|मुझे लगता है कि ...|明日は雨だと思います。|Ashita wa ame da to omoimasu.|I think it will rain tomorrow.
+N3|〜のに (even though)|Plain form + のに|Shows contrast or surprise.|... के बावजूद|勉強したのに、忘れました。|Benkyou shita noni, wasuremashita.|Even though I studied, I forgot.
+N3|〜おかげで / 〜せいで|Noun の + おかげで / せいで|おかげで = thanks to (good). せいで = because of (bad).|की वजह से (अच्छा / बुरा)|先生のおかげで、合格しました。|Sensei no okage de, goukaku shimashita.|Thanks to my teacher, I passed.
+N3|〜わけではない (not necessarily)|Plain form + わけではない|Partly denies something. Not the same as わけがない (impossible).|ऐसा नहीं कि ...|高いものが全部いいわけではない。|Takai mono ga zenbu ii wake dewa nai.|Not everything expensive is good.
+N3|〜そうだ (I heard that)|Plain form + そうだ|Passing on information you heard.|सुना है कि ...|明日は雨だそうです。|Ashita wa ame da sou desu.|I heard it will rain tomorrow.
+N3|〜ために (purpose)|Verb dictionary form + ために|Shows purpose: in order to.|... के लिए / ... करने के लिए|合格するために、勉強します。|Goukaku suru tame ni, benkyou shimasu.|I study in order to pass.
+N2|〜ざるを得ない (no choice)|Verb ない-stem + ざるを得ない|You have no choice but to do it.|करना ही पड़ेगा (मजबूरी)|行かざるを得ません。|Ikazaru o emasen.|I have no choice but to go.
+N2|〜に違いない (must be)|Plain form + に違いない|Strong guess based on evidence.|ज़रूर होगा / होगी|彼は疲れているに違いない。|Kare wa tsukarete iru ni chigainai.|He must be tired.
+N2|〜に関して (regarding)|Noun + に関して|Formal way to say about / regarding.|... के बारे में / के संबंध में|品質に関しては妥協できない。|Hinshitsu ni kanshite wa dakyou dekinai.|We can't compromise regarding quality.
+N2|〜つつ (while / although)|Verb stem + つつ|Two actions at once, or contrast.|करते हुए / करते हुए भी|悩みつつ、決めました。|Nayami tsutsu, kimemashita.|I decided while worrying.
+N2|Keigo: お〜になる / お〜する|お + stem + になる (respect) / する (humble)|Respect raises the other person. Humble lowers yourself.|आप पधारिए (आदर) / मैं करता हूँ (विनम्र)|先生はもうお帰りになりました。|Sensei wa mou okaeri ni narimashita.|The teacher has already gone home.
+N1|〜を余儀なくされる (forced to)|Noun + を余儀なくされる|Forced by circumstances. Used in formal writing.|... के लिए बाध्य होना पड़ा|計画の変更を余儀なくされた。|Keikaku no henkou o yoginaku sareta.|We were forced to change the plan.
+N1|〜に即して (in line with)|Noun + に即して|Based strictly on facts or rules.|तथ्यों / नियमों के अनुरूप|事実に即して判断する。|Jijitsu ni sokushite handan suru.|Judge based on the facts.
+N1|〜ずにはいられない (can't help)|Verb ない-stem + ずにはいられない|You cannot stop yourself from doing it.|किए बिना रह नहीं सकता|笑わずにはいられない。|Warawazu ni wa irarenai.|I can't help laughing.
+N1|〜ものの (although)|Plain form + ものの|Formal 'although', result is different from expectation.|हालाँकि ...|買ったものの、使っていない。|Katta mono no, tsukatte inai.|Although I bought it, I don't use it.
+N1|〜に値する (worthy of)|Noun + に値する|Deserves or is worth something.|... के योग्य|称賛に値する成果です。|Shousan ni atai suru seika desu.|It's a result worthy of praise.
+"""
+
+    private val allGrammar: List<GrammarPoint> by lazy {
+        grammarData.trim().lines().filter { it.isNotBlank() }.map { line ->
+            val p = line.split("|").map { it.trim() }
+            fun f(i: Int) = p.getOrElse(i) { "" }
+            GrammarPoint(levelByLabel[f(0)] ?: JlptLevel.N5, f(1), f(2), f(3), f(4), f(5), f(6), f(7))
+        }
+    }
+
+    fun grammar(level: JlptLevel): List<GrammarPoint> = allGrammar.filter { it.level == level }
+
+    // ---------------------------------------------------------------
+    // QUIZ
+    // ---------------------------------------------------------------
+    fun makeQuiz(level: JlptLevel, mode: QuizMode, count: Int = 10): List<QuizQuestion> {
+        val pool = words(level)
+        return when (mode) {
+            QuizMode.KANA -> {
+                val kanaPool = allKana.filter { it.group != KanaGroup.COMBO }
+                kanaPool.shuffled().take(count).map { k ->
+                    val wrong = kanaPool.map { it.romaji }.distinct().filter { it != k.romaji }.shuffled().take(3)
+                    val opts = (wrong + k.romaji).shuffled()
+                    QuizQuestion(
+                        instruction = "What is the sound of this ${if (k.type == KanaType.HIRAGANA) "hiragana" else "katakana"}?",
+                        big = k.char,
+                        options = opts,
+                        correctIndex = opts.indexOf(k.romaji),
+                        explanation = "${k.char} is read \"${k.romaji}\".",
+                        audio = k.char
                     )
                 }
             }
-        }
-
-        // 2. Listening Only Mode
-        if (mode == QuizMode.MIXED || mode == QuizMode.LISTENING) {
-            pool.forEach { item ->
-                val distractors = vocabList.filter { it.id != item.id }.shuffled().take(3).map { "${it.meaning} (${it.hindiHint})" }
-                val correctAns = "${item.meaning} (${item.hindiHint})"
-                val opts = (distractors + correctAns).shuffled()
-                questions.add(
+            QuizMode.MEANING -> pool.shuffled().take(count).map { w ->
+                val wrong = pool.map { it.en }.distinct().filter { it != w.en }.shuffled().take(3)
+                val opts = (wrong + w.en).shuffled()
+                QuizQuestion(
+                    instruction = "What does this word mean?",
+                    big = w.kanji,
+                    options = opts,
+                    correctIndex = opts.indexOf(w.en),
+                    explanation = "${w.kanji} (${w.kana}) = ${w.en} · ${w.hi}",
+                    audio = w.kana
+                )
+            }
+            QuizMode.READING -> {
+                val kanjiWords = pool.filter { it.kanji != it.kana }
+                kanjiWords.shuffled().take(count).map { w ->
+                    val wrong = kanjiWords.map { it.kana }.distinct().filter { it != w.kana }.shuffled().take(3)
+                    val opts = (wrong + w.kana).shuffled()
                     QuizQuestion(
-                        prompt = "🎧 Tap the Speaker icon, listen carefully, and select the meaning:",
-                        subPrompt = "Audio Listening Comprehension • ${item.level.label}",
+                        instruction = "How do you read this word?",
+                        big = w.kanji,
                         options = opts,
-                        correctIndex = opts.indexOf(correctAns),
-                        explanation = "You heard 「${item.kanji}」 (${item.kana} / ${item.romaji}) which means '${item.meaning}' (${item.hindiHint}).",
-                        level = item.level,
-                        audioText = item.kanji,
-                        isListeningOnly = true
+                        correctIndex = opts.indexOf(w.kana),
+                        explanation = "${w.kanji} is read ${w.kana} (${w.romaji}) = ${w.en}",
+                        audio = w.kana
                     )
+                }
+            }
+            QuizMode.LISTEN -> pool.shuffled().take(count).map { w ->
+                val wrong = pool.map { it.en }.distinct().filter { it != w.en }.shuffled().take(3)
+                val opts = (wrong + w.en).shuffled()
+                QuizQuestion(
+                    instruction = "Listen and choose the meaning",
+                    big = "🔊",
+                    options = opts,
+                    correctIndex = opts.indexOf(w.en),
+                    explanation = "You heard ${w.kanji} (${w.kana}) = ${w.en} · ${w.hi}",
+                    audio = w.kana,
+                    autoPlay = true
                 )
             }
         }
-
-        // 3. Kanji Reading & Radicals
-        if (mode == QuizMode.MIXED || mode == QuizMode.KANJI_READING) {
-            pool.forEach { item ->
-                val wrongKana = vocabList.filter { it.id != item.id }.shuffled().take(3).map { it.kana }
-                val opts = (wrongKana + item.kana).shuffled()
-                questions.add(
-                    QuizQuestion(
-                        prompt = "What is the correct reading (Furigana) for 「${item.kanji}」?",
-                        subPrompt = "Kanji Reading • Radicals: ${item.radicals}",
-                        options = opts,
-                        correctIndex = opts.indexOf(item.kana),
-                        explanation = "「${item.kanji}」 is read as 「${item.kana}」 (${item.romaji}) meaning '${item.meaning}'. Mnemonic: ${item.mnemonic}",
-                        level = item.level,
-                        audioText = item.kanji
-                    )
-                )
-            }
-        }
-
-        // 4. Grammar & Particle Questions
-        if (mode == QuizMode.MIXED || mode == QuizMode.GRAMMAR) {
-            val gPool = if (selectedLevel == null) grammarList else grammarList.filter { it.level == selectedLevel }
-            gPool.forEach { g ->
-                val ex = g.examples.first()
-                val allTitles = grammarList.map { it.title }.distinct()
-                val wrong = allTitles.filter { it != g.title }.shuffled().take(3)
-                val opts = (wrong + g.title).shuffled()
-                questions.add(
-                    QuizQuestion(
-                        prompt = "Which grammar concept applies to:\n「${ex.jp}」\n(${ex.en})",
-                        subPrompt = "Grammar Dojo • ${g.level.label}",
-                        options = opts,
-                        correctIndex = opts.indexOf(g.title),
-                        explanation = "${g.explanation}\n🇮🇳 Hindi Parallel: ${g.hindiParallel}",
-                        level = g.level,
-                        audioText = ex.jp
-                    )
-                )
-            }
-        }
-
-        return questions.shuffled()
     }
 }
