@@ -49,7 +49,7 @@ data class VocabItem(
     val level: JlptLevel,
     val category: String,
     val verbGroup: VerbGroup = VerbGroup.NOT_VERB,
-    val pitchPattern: List<Int>, // 0 = Low, 1 = High per mora
+    val pitchPattern: List<Int>,
     val pitchType: PitchType = PitchType.HEIBAN,
     val radicals: String = "",
     val onyomi: String = "-",
@@ -69,7 +69,7 @@ data class GrammarPoint(
     val explanation: String,
     val hindiParallel: String,
     val commonMistake: String,
-    val examples: List< ExampleSentence >
+    val examples: List<ExampleSentence>
 )
 
 data class ExampleSentence(
@@ -135,6 +135,15 @@ data class ConjugationForm(
     val usageHint: String
 )
 
+private data class GodanStems(
+    val iStem: String,
+    val aStem: String,
+    val eStem: String,
+    val oStem: String,
+    val teForm: String,
+    val taForm: String
+)
+
 object VerbConjugator {
     fun conjugate(item: VocabItem): List<ConjugationForm> {
         if (item.verbGroup == VerbGroup.NOT_VERB) return emptyList()
@@ -195,32 +204,32 @@ object VerbConjugator {
                 val lastChar = k.last()
                 val baseK = k.dropLast(1)
                 val baseR = r.dropLast(1)
-                val (iStem, aStem, eStem, oStem, teForm, taForm) = when (lastChar) {
-                    'う' -> arrayOf("い", "わ", "え", "おう", "って", "った")
-                    'つ' -> arrayOf("ち", "た", "て", "とう", "って", "った")
-                    'る' -> arrayOf("り", "ら", "れ", "ろう", "って", "った")
-                    'む' -> arrayOf("み", "ま", "め", "もう", "んで", "んだ")
-                    'ぶ' -> arrayOf("び", "ば", "べ", "ぼう", "んで", "んだ")
-                    'ぬ' -> arrayOf("に", "な", "ね", "のう", "んで", "んだ")
-                    'く' -> if (k == "行く") arrayOf("き", "か", "け", "こう", "って", "った")
-                            else arrayOf("き", "か", "け", "こう", "いて", "いた")
-                    'ぐ' -> arrayOf("ぎ", "が", "げ", "ごう", "いで", "いだ")
-                    'す' -> arrayOf("し", "さ", "せ", "そう", "して", "した")
-                    else -> arrayOf("い", "わ", "え", "おう", "って", "った")
+                val stems = when (lastChar) {
+                    'う' -> GodanStems("い", "わ", "え", "おう", "って", "った")
+                    'つ' -> GodanStems("ち", "た", "て", "とう", "って", "った")
+                    'る' -> GodanStems("り", "ら", "れ", "ろう", "って", "った")
+                    'む' -> GodanStems("み", "ま", "め", "もう", "んで", "んだ")
+                    'ぶ' -> GodanStems("び", "ば", "べ", "ぼう", "んで", "んだ")
+                    'ぬ' -> GodanStems("に", "な", "ね", "のう", "んで", "んだ")
+                    'く' -> if (k == "行く") GodanStems("き", "か", "け", "こう", "って", "った")
+                            else GodanStems("き", "か", "け", "こう", "いて", "いた")
+                    'ぐ' -> GodanStems("ぎ", "が", "げ", "ごう", "いで", "いだ")
+                    'す' -> GodanStems("し", "さ", "せ", "そう", "して", "した")
+                    else -> GodanStems("い", "わ", "え", "おう", "って", "った")
                 }
                 listOf(
                     ConjugationForm("Dictionary (Plain)", k, r, "Base Godan form"),
-                    ConjugationForm("Polite (Masu)", "$baseK${iStem}ます", "$baseR${iStem}ます", "I-stem + masu"),
-                    ConjugationForm("Negative (Nai)", "$baseK${aStem}ない", "$baseR${aStem}ない", "A-stem + nai"),
-                    ConjugationForm("Past Plain (Ta)", "$baseK$taForm", "$baseR$taForm", "Euphonic past"),
-                    ConjugationForm("Te-Form", "$baseK$teForm", "$baseR$teForm", "Euphonic te-form"),
-                    ConjugationForm("Potential (Can do)", "$baseK${eStem}る", "$baseR${eStem}る", "E-stem + ru (कर सकता हूँ)"),
-                    ConjugationForm("Volitional (Let's)", "$baseK$oStem", "$baseR$oStem", "O-stem + u (चलो करें)"),
-                    ConjugationForm("Desire (Tai)", "$baseK${iStem}たい", "$baseR${iStem}たい", "I-stem + tai (करना चाहता हूँ)"),
-                    ConjugationForm("Passive", "$baseK${aStem}れる", "$baseR${aStem}れる", "A-stem + reru"),
-                    ConjugationForm("Causative", "$baseK${aStem}せる", "$baseR${aStem}せる", "A-stem + seru"),
-                    ConjugationForm("Conditional (Eba)", "$baseK${eStem}ば", "$baseR${eStem}ば", "E-stem + ba (अगर करें)"),
-                    ConjugationForm("Must do", "$baseK${aStem}なければならない", "$baseR${aStem}なければならない", "Must do")
+                    ConjugationForm("Polite (Masu)", "$baseK${stems.iStem}ます", "$baseR${stems.iStem}ます", "I-stem + masu"),
+                    ConjugationForm("Negative (Nai)", "$baseK${stems.aStem}ない", "$baseR${stems.aStem}ない", "A-stem + nai"),
+                    ConjugationForm("Past Plain (Ta)", "$baseK${stems.taForm}", "$baseR${stems.taForm}", "Euphonic past"),
+                    ConjugationForm("Te-Form", "$baseK${stems.teForm}", "$baseR${stems.teForm}", "Euphonic te-form"),
+                    ConjugationForm("Potential (Can do)", "$baseK${stems.eStem}る", "$baseR${stems.eStem}る", "E-stem + ru (कर सकता हूँ)"),
+                    ConjugationForm("Volitional (Let's)", "$baseK${stems.oStem}", "$baseR${stems.oStem}", "O-stem + u (चलो करें)"),
+                    ConjugationForm("Desire (Tai)", "$baseK${stems.iStem}たい", "$baseR${stems.iStem}たい", "I-stem + tai (करना चाहता हूँ)"),
+                    ConjugationForm("Passive", "$baseK${stems.aStem}れる", "$baseR${stems.aStem}れる", "A-stem + reru"),
+                    ConjugationForm("Causative", "$baseK${stems.aStem}せる", "$baseR${stems.aStem}せる", "A-stem + seru"),
+                    ConjugationForm("Conditional (Eba)", "$baseK${stems.eStem}ば", "$baseR${stems.eStem}ば", "E-stem + ba (अगर करें)"),
+                    ConjugationForm("Must do", "$baseK${stems.aStem}なければならない", "$baseR${stems.aStem}なければならない", "Must do")
                 )
             }
             else -> emptyList()
