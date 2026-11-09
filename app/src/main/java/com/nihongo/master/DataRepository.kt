@@ -389,8 +389,8 @@ N1|〜に値する (worthy of)|Noun + に値する|Deserves or is worth somethin
     // ---------------------------------------------------------------
     // QUIZ
     // ---------------------------------------------------------------
-    fun makeQuiz(level: JlptLevel, mode: QuizMode, count: Int = 10): List<QuizQuestion> {
-        val pool = words(level)
+    fun makeQuiz(level: JlptLevel?, mode: QuizMode, count: Int = 10): List<QuizQuestion> {
+        val pool = if (level == null) vocab else words(level)
         return when (mode) {
             QuizMode.KANA -> {
                 val kanaPool = allKana.filter { it.group != KanaGroup.COMBO }
