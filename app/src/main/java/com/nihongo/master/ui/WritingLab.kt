@@ -136,9 +136,9 @@ fun WritingLabScreen(
         }
     }
 
-    if (showCanvas) {
+    if (showCanvas && currentKanji != null) {
         KanjiCanvasDialog(
-            kanjiItem = currentKanji,
+            kanjiItem = currentKanji, // Now safely guaranteed non-null
             onDismiss = { showCanvas = false },
             onComplete = {
                 onAwardXp(20)
