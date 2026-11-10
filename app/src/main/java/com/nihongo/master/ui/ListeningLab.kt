@@ -58,22 +58,37 @@ fun ListeningLabScreen(
 /** Splits any Japanese sentence into Duolingo-style clickable word & particle tiles! */
 private fun tokenizeJapaneseSentence(jp: String): List<String> {
     val clean = jp.replace("。", "").replace("？", "").replace("！", "").trim()
-    val delimiters = setOf('は', 'が', 'を', 'に', 'で', 'へ', 'と', 'から', 'まで', '、')
+    val twoCharParticles = setOf("から", "まで", "より", "だけ", "ほど")
+    val oneCharParticles = setOf('は', 'が', 'を', 'に', 'で', 'へ', 'と', 'も', 'の')
     val tokens = mutableListOf<String>()
-    var current = StringBuilder()
+    val current = StringBuilder()
 
-    for (ch in clean) {
-        if (ch == '、') {
+    var i = 0
+    while (i < clean.length) {
+        val ch = clean[i]
+        if (ch == '、' || ch == ' ') {
             if (current.isNotEmpty()) {
                 tokens.add(current.toString())
-                current = StringBuilder()
+                current.clear()
             }
-        } else if (ch in delimiters && current.isNotEmpty()) {
+            i++
+            continue
+        }
+
+        val twoChar = if (i + 1 < clean.length) clean.substring(i, i + 2) else ""
+        if (twoChar in twoCharParticles && current.isNotEmpty()) {
+            tokens.add(current.toString())
+            tokens.add(twoChar)
+            current.clear()
+            i += 2
+        } else if (ch in oneCharParticles && current.isNotEmpty()) {
             tokens.add(current.toString())
             tokens.add(ch.toString())
-            current = StringBuilder()
+            current.clear()
+            i++
         } else {
             current.append(ch)
+            i++
         }
     }
     if (current.isNotEmpty()) tokens.add(current.toString())
@@ -323,7 +338,7 @@ private fun WordTileChip(
     isSelectedInBank: Boolean,
     onClick: () -> Unit
 ) {
-    val isParticle = text in setOf("は", "が", "を", "に", "で", "へ", "と")
+    val isParticle = text in setOf("は", "が", "を", "に", "で", "へ", "と", "から", "まで", "も", "の")
     val topColor = when {
         isSelectedInBank -> Color(0xFFE2E8F0)
         isParticle -> DuoColors.LilacPurpleBg
