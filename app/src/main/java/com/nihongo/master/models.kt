@@ -5,7 +5,7 @@ import kotlin.math.min
 import kotlin.math.roundToInt
 
 // =========================================================================
-// 1. JLPT LEVELS & KANA MODELS
+// 1. JLPT LEVELS & KANA MODELS (Duolingo Color-Theory Harmonized)
 // =========================================================================
 enum class JlptLevel(
     val label: String,
@@ -13,19 +13,19 @@ enum class JlptLevel(
     val subtitle: String,
     val color: Long
 ) {
-    N5("N5", "Beginner", "Basic words, greetings, simple sentences", 0xFF10B981),
-    N4("N4", "Elementary", "Everyday conversation and daily life", 0xFF3B82F6),
-    N3("N3", "Intermediate", "Natural Japanese, opinions and nuances", 0xFFF59E0B),
-    N2("N2", "Upper Intermediate", "Business, news and formal Japanese (Keigo)", 0xFF8B5CF6),
-    N1("N1", "Advanced", "Academic, literary and native-level fluency", 0xFFEF4444)
+    N5("N5", "Beginner", "Kana, greetings, numbers & daily survival", 0xFF58CC02),       // Feather Green
+    N4("N4", "Elementary", "Everyday conversation and life experiences", 0xFF1CB0F6),    // Macaw Blue
+    N3("N3", "Intermediate", "Natural Japanese, opinions and nuances", 0xFFFF9600),      // Fox Orange
+    N2("N2", "Upper Intermediate", "Business, news and formal Keigo", 0xFFCE82FF),       // Lilac Purple
+    N1("N1", "Advanced", "Academic, literary and native-level fluency", 0xFFFF4B4B)      // Cardinal Red
 }
 
 enum class KanaType { HIRAGANA, KATAKANA }
 
 enum class KanaGroup(val title: String, val tip: String) {
-    BASIC("Basic Gojūon (46)", "46 foundational sounds. Master their stroke order first."),
-    VOICED("Dakuten & Handakuten (25)", "Add ゛ (voiced) or ゜ (p-sound) to shift consonant vibration."),
-    COMBO("YōonDigraphs (33)", "Small や ゆ よ blends with i-column kana into a single mora.")
+    BASIC("Basic Gojūon (46)", "46 मूल अक्षर (अ से न् तक) — जापानी पढ़ने की पहली सीढ़ी।"),
+    VOICED("Dakuten & Handakuten (25)", "अक्षर पर ゛ (बिंदु) या ゜ (गोला) लगाने से आवाज़ गहरी (k→g, s→z, h→b/p) हो जाती है।"),
+    COMBO("Yōon Digraphs (33)", "छोटा ゃ, ゅ, ょ जुड़कर दो अक्षरों को एक मिलाकर (kya, sha, cha) बोलता है।")
 }
 
 data class KanaChar(
@@ -43,17 +43,17 @@ enum class WordType(val code: String, val label: String, val isVerb: Boolean) {
     V5("v5", "Godan Verb (う-verb)", true),
     VS("vs", "Suru Verb (する)", true),
     VK("vk", "Irregular Verb (来る)", true),
-    N("n", "Noun (名詞)", false),
-    ADJI("adji", "い-Adjective", false),
-    ADJNA("adjna", "な-Adjective", false),
-    OTHER("x", "Expression / Adverb", false)
+    N("n", "Noun (संज्ञा)", false),
+    ADJI("adji", "い-Adjective (विशेषण)", false),
+    ADJNA("adjna", "な-Adjective (विशेषण)", false),
+    OTHER("x", "Phrase / Expression", false)
 }
 
 enum class PitchPatternType(val label: String, val hiDesc: String) {
-    HEIBAN("Heiban (平板 - Flat)", "Pehla mora low, baaki sab high (bina drop ke)"),
-    ATAMADAKA("Atamadaka (頭高 - Initial High)", "Pehla mora high, uske turant baad pitch drop"),
-    NAKADAKA("Nakadaka (中高 - Middle High)", "Beech me pitch high hokar fir niche girti hai"),
-    ODAKA("Odaka (尾高 - Tail High)", "Word ke end tak high, par agle particle (は/が) par drop")
+    HEIBAN("Heiban (Flat ↗)", "पहला अक्षर नीचे (Low), बाकी सब ऊपर (High) बिना गिरे"),
+    ATAMADAKA("Atamadaka (High-Drop ↘)", "पहला अक्षर ऊँचा (High), उसके तुरंत बाद आवाज़ नीचे गिरती है"),
+    NAKADAKA("Nakadaka (Mid-Peak ↗↘)", "बीच में आवाज़ ऊपर जाकर फिर नीचे गिरती है"),
+    ODAKA("Odaka (Tail-Drop ↗)", "शब्द के अंत तक ऊँचा, पर अगले Particle (は/が) पर आवाज़ गिरती है")
 }
 
 data class PitchMora(
@@ -122,9 +122,9 @@ data class KanjiItem(
 // 3. PRO SPEAKING, LISTENING & WRITING LAB MODELS
 // =========================================================================
 enum class ListeningSpeed(val label: String, val rate: Float, val badge: String) {
-    SLOW("0.65x Slow", 0.65f, "🐢 Beginner Clear"),
-    NATURAL("1.0x Native", 0.98f, "🎯 Natural Speed"),
-    FAST("1.25x Rapid", 1.22f, "⚡ Anime / Tokyo Native")
+    SLOW("🐢 0.65x", 0.65f, "Beginner Clear"),
+    NATURAL("🎯 1.0x", 0.98f, "Native Speed"),
+    FAST("⚡ 1.25x", 1.22f, "Rapid Tokyo")
 }
 
 data class SpokenContraction(
@@ -164,7 +164,7 @@ enum class QuizMode(val label: String, val desc: String) {
     READING("Reading", "Kanji → Hiragana reading"),
     LISTEN("Listening", "Audio comprehension without text"),
     KANA("Kana", "Hiragana & Katakana recognition"),
-    DICTATION("Dictation", "Listen & type/construct the exact Japanese"),
+    DICTATION("Dictation", "Listen & match the exact Japanese sentence"),
     PARTICLE("Grammar", "Fill in the right contextual particle (は/が/を/に/で)")
 }
 
@@ -183,7 +183,10 @@ data class QuizQuestion(
 // 5. PITCH ACCENT ANALYZER (MORA SPLITTER & PITCH GRAPH)
 // =========================================================================
 object PitchAccentAnalyzer {
-    private val smallKana = setOf('ゃ', 'ゅ', 'ょ', 'ぁ', 'ぃ', 'ぅ', 'ぇ', 'ぉ', 'ャ', 'ュ', 'ョ', 'ァ', 'ィ', 'ゥ', 'ェ', 'ォ')
+    private val smallKana = setOf(
+        'ゃ', 'ゅ', 'ょ', 'ぁ', 'ぃ', 'ぅ', 'ぇ', 'ぉ',
+        'ャ', 'ュ', 'ョ', 'ァ', 'ィ', 'ゥ', 'ェ', 'ォ'
+    )
 
     /**
      * Splits any Japanese kana word into accurate phonetic moras (拍).
@@ -213,8 +216,8 @@ object PitchAccentAnalyzer {
         return when (type) {
             WordType.V1, WordType.V5 -> if (moras.size >= 3) moras.size - 1 else 1
             WordType.ADJI -> max(1, moras.size - 1)
-            WordType.VS, WordType.N, WordType.ADJNA -> 0 // Default Heiban for nouns/suru unless specified
-            WordType.VK -> 1 // 来る (kuru) has drop after first mora (く↓る)
+            WordType.VS, WordType.N, WordType.ADJNA -> 0
+            WordType.VK -> 1
             WordType.OTHER -> 1
         }
     }
@@ -225,11 +228,11 @@ object PitchAccentAnalyzer {
         val drop = resolveDropIndex(moras, explicitDrop, type)
 
         return moras.mapIndexed { idx, mora ->
-            val pos = idx + 1 // 1-based mora position
+            val pos = idx + 1
             val isHigh = when (drop) {
-                0 -> pos > 1 // Heiban: L - H - H - H
-                1 -> pos == 1 // Atamadaka: H - L - L - L
-                else -> pos in 2..drop // Nakadaka / Odaka: L - H - (H) - L
+                0 -> pos > 1
+                1 -> pos == 1
+                else -> pos in 2..drop
             }
             PitchMora(
                 mora = mora,
@@ -255,10 +258,10 @@ object PitchAccentAnalyzer {
 // 6. SM-2 SPACED REPETITION ENGINE (SRS MEMORY SYSTEM)
 // =========================================================================
 enum class SrsGrade(val rating: Int, val label: String, val xpReward: Int, val colorHex: Long) {
-    AGAIN(1, "Again (भूल गया)", 5, 0xFFEF4444),
-    HARD(3, "Hard (कठिन)", 12, 0xFFF59E0B),
-    GOOD(4, "Good (याद है)", 20, 0xFF10B981),
-    EASY(5, "Easy (आसान)", 30, 0xFF3B82F6)
+    AGAIN(1, "Again (भूल गया)", 5, 0xFFFF4B4B),   // Cardinal Red
+    HARD(3, "Hard (कठिन)", 12, 0xFFFF9600),       // Fox Orange
+    GOOD(4, "Good (याद है)", 20, 0xFF58CC02),      // Feather Green
+    EASY(5, "Easy (आसान)", 30, 0xFF1CB0F6)        // Macaw Blue
 }
 
 data class SrsCardState(
@@ -267,11 +270,11 @@ data class SrsCardState(
     val repetitions: Int = 0,
     val easeFactor: Float = 2.5f,
     val dueEpochDay: Long = 0L,
-    val firstSeenDay: Long = -1L // day this card was first reviewed (for daily new-card limit)
+    val firstSeenDay: Long = -1L
 )
 
 object SrsEngine {
-    /** Local-timezone day number (UTC version flipped the day at 5:30 AM IST). */
+    /** Local-timezone day number so the daily queue resets at local midnight. */
     fun currentEpochDay(): Long {
         val now = System.currentTimeMillis()
         return (now + java.util.TimeZone.getDefault().getOffset(now)) / 86_400_000L
@@ -303,7 +306,6 @@ object SrsEngine {
             intervalDays = nextInterval,
             repetitions = nextRep,
             easeFactor = nextEase,
-            // AGAIN -> stays due today (re-shown this session); otherwise due after interval
             dueEpochDay = if (q < 3) today else today + nextInterval,
             firstSeenDay = if (card.firstSeenDay < 0) today else card.firstSeenDay
         )
@@ -342,7 +344,7 @@ data class PronunciationResult(
 )
 
 object PronunciationEvaluator {
-    private val ignoredPunctuation = setOf('。', '、', '！', '？', ' ', '　', '.', ',', '!', '?')
+    private val ignoredPunctuation = setOf('。', '、', '！', '？', ' ', '　', '.', ',', '!', '?', '-', '〜')
 
     private fun normalize(input: String): String =
         input.filterNot { it in ignoredPunctuation }.lowercase()
@@ -391,27 +393,33 @@ object PronunciationEvaluator {
 
         val candidates = listOf(
             normalize(targetKanji),
-            normalize(targetKana)
+            normalize(targetKana),
+            normalize(targetRomaji)
         ).filter { it.isNotEmpty() }
 
         val bestScore = candidates.maxOfOrNull { target ->
-            val maxLen = max(cleanSpoken.length, target.length)
-            if (maxLen == 0) 100
-            else {
-                val dist = levenshtein(cleanSpoken, target)
-                ((maxLen - dist).toFloat() / maxLen * 100f).roundToInt().coerceIn(0, 100)
+            if (cleanSpoken.contains(target) || target.contains(cleanSpoken)) {
+                val ratio = min(cleanSpoken.length, target.length).toFloat() / max(cleanSpoken.length, target.length).coerceAtLeast(1)
+                max(85, (ratio * 100f).roundToInt())
+            } else {
+                val maxLen = max(cleanSpoken.length, target.length)
+                if (maxLen == 0) 100
+                else {
+                    val dist = levenshtein(cleanSpoken, target)
+                    ((maxLen - dist).toFloat() / maxLen * 100f).roundToInt().coerceIn(0, 100)
+                }
             }
         } ?: 0
 
         val (title, detail) = when {
-            bestScore >= 90 -> "परफेक्ट! शब्द सही पहचाना गया" to
-                "शानदार! (नोट: यह सिर्फ़ शब्द का मिलान जाँचता है, Pitch नहीं — Pitch ग्राफ़ से खुद मिलाएँ।)"
-            bestScore >= 75 -> "बहुत बढ़िया! (Great Attempt)" to
-                "काफी हद तक सही है। Pitch Accent ग्राफ़ देखकर एक बार और अभ्यास करें।"
-            bestScore >= 50 -> "करीब हैं! (Getting Closer)" to
-                "कुछ अक्षर अलग सुनाई दिए। पहले 0.65x Slow ऑडियो सुनें और फिर दोहराएं।"
-            else -> "दोबारा कोशिश करें (Keep Practicing)" to
-                "आपने कहा: \"$spoken\" — लक्ष्य: \"$targetKanji ($targetKana)\""
+            bestScore >= 90 -> "🎉 परफेक्ट! शानदार उच्चारण (+15 XP)" to
+                "आपकी आवाज़ बिल्कुल सही पहचानी गई! Pitch ग्राफ़ से उतार-चढ़ाव भी मिलाएँ।"
+            bestScore >= 70 -> "✅ बहुत बढ़िया! (Passed +15 XP)" to
+                "सही पहचाना गया! और नैचुरल बोलने के लिए 1.0x Native ऑडियो के साथ दोहराएं।"
+            bestScore >= 45 -> "⚡ करीब हैं! (Almost There)" to
+                "पहले 🐢 0.65x Slow बटन दबाकर हर अक्षर (Mora) को ध्यान से सुनें और फिर बोलें।"
+            else -> "🔄 दोबारा कोशिश करें (Keep Practicing)" to
+                "सुनाई दिया: \"$spoken\" • लक्ष्य: \"$targetKanji ($targetKana - $targetRomaji)\""
         }
 
         return PronunciationResult(
@@ -436,10 +444,6 @@ data class ConjForm(
 
 object VerbConjugator {
 
-    // Returns 10 essential forms:
-    // 0: Polite (masu), 1: Negative (nai), 2: Te-form, 3: Past (ta),
-    // 4: Want to (tai), 5: Potential (can do), 6: Volitional (let's),
-    // 7: Conditional (ba - if), 8: Passive (rareru), 9: Causative (saseru)
     private fun build(t: String, type: WordType): List<String> {
         return when (type) {
             WordType.V1 -> {
@@ -482,7 +486,6 @@ object VerbConjugator {
             WordType.V5 -> {
                 val last = t.last()
                 val base = t.dropLast(1)
-                // i-stem, a-stem, e-stem, o-stem (volitional), te-form, ta-form
                 val stems = when (last) {
                     'う' -> listOf("い", "わ", "え", "お", "って", "った")
                     'つ' -> listOf("ち", "た", "て", "と", "って", "った")
@@ -506,7 +509,6 @@ object VerbConjugator {
                 val te = stems[4]
                 val ta = stems[5]
 
-                // ある is irregular: negative is ない (not あらない)
                 val neg = if (t == "ある" || t == "有る" || t == "在る") "ない" else base + a + "ない"
                 listOf(
                     base + i + "ます",
@@ -530,28 +532,28 @@ object VerbConjugator {
         val jp = build(w.kanji, w.type)
         val rd = build(w.kana, w.type)
         val names = listOf(
-            "Polite (〜ます)",
-            "Negative (〜ない)",
-            "Te-form (〜て)",
-            "Past (〜た)",
-            "Desire (〜たい)",
-            "Potential (Can do)",
-            "Volitional (Let's 〜よう)",
-            "Conditional (If 〜ば)",
-            "Passive (〜られる)",
-            "Causative (Make/Let 〜させる)"
+            "1. Polite (〜ます)",
+            "2. Negative (〜ない)",
+            "3. Te-form (〜て)",
+            "4. Past (〜た)",
+            "5. Desire (〜たい)",
+            "6. Potential (Can do)",
+            "7. Volitional (Let's 〜よう)",
+            "8. Conditional (If 〜ば)",
+            "9. Passive (〜られる)",
+            "10. Causative (〜させる)"
         )
         val hints = listOf(
-            "Formal daily conversation (विनम्र भाषा)",
-            "Plain negative (नहीं करता)",
-            "Connect actions, requests (〜てください) & 〜ている",
-            "Plain past tense (किया / गया)",
-            "Express personal wish (करना चाहता हूँ)",
-            "Ability or possibility (कर सकता हूँ)",
-            "Casual suggestion (चलो करते हैं!)",
-            "Hypothetical condition (अगर ऐसा हो...)",
-            "Action done to subject (किया जाना)",
-            "Make or allow someone to do (करवाना / करने देना)"
+            "विनम्र भाषा (करता हूँ / करेंगे) — अजनबियों और ऑफिस के लिए",
+            "साधारण नकारात्मक (नहीं करता) — दोस्तों के साथ",
+            "वाक्य जोड़ने, कृपया कहने (〜てください) और रहा है (〜ている) के लिए",
+            "भूतकाल (किया / गया) — दोस्तों के साथ",
+            "अपनी इच्छा बताना (करना चाहता हूँ)",
+            "क्षमता बताना (कर सकता हूँ)",
+            "सलाह / प्रस्ताव (चलो करते हैं!)",
+            "शर्त बताना (अगर ऐसा करें तो...)",
+            "कर्मवाच्य (किसी के द्वारा किया जाना)",
+            "प्रेरणार्थक (किसी से करवाना या करने की अनुमति देना)"
         )
         return names.indices.map { ConjForm(names[it], jp[it], rd[it], hints[it]) }
     }
