@@ -16,6 +16,7 @@ import androidx.compose.material.icons.filled.SlowMotionVideo
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -31,18 +32,19 @@ import com.nihongo.master.DataRepository
 
 val LocalAppLanguage = compositionLocalOf { AppLanguage.ENGLISH }
 val LocalShowRomaji = compositionLocalOf { true }
+val LocalDarkTheme = compositionLocalOf { false }
 
 object DuoColors {
     val FeatherGreen = Color(0xFF10B981)
     val FeatherGreenDark = Color(0xFF059669)
     val FeatherGreenBg = Color(0xFFD1FAE5)
 
-    val MacawBlue = Color(0xFF38BDF8)
+    val MacawBlue = Color(0xFF0EA5E9)
     val MacawBlueDark = Color(0xFF0284C7)
     val MacawBlueBg = Color(0xFFE0F2FE)
 
-    val LilacPurple = Color(0xFFA78BFA)
-    val LilacPurpleDark = Color(0xFF7C3AED)
+    val LilacPurple = Color(0xFF8B5CF6)
+    val LilacPurpleDark = Color(0xFF6D28D9)
     val LilacPurpleBg = Color(0xFFEDE9FE)
 
     val FoxOrange = Color(0xFFF59E0B)
@@ -57,15 +59,18 @@ object DuoColors {
     val BeeGoldDark = Color(0xFFD97706)
     val BeeGoldBg = Color(0xFFFEF9C3)
 
-    val LightCanvas = Color(0xFFF6F5F2)
+    // Crisp Light Mode Surfaces
+    val LightCanvas = Color(0xFFF8FAFC)
     val LightCard = Color(0xFFFFFFFF)
-    val LightBorder = Color(0xFFE2E0D8)
-    val LightLip = Color(0xFFD0CEC4)
-    val LightEmptySlot = Color(0xFFECEAE4)
+    val LightBorder = Color(0xFFCBD5E1)
+    val LightLip = Color(0xFF94A3B8)
+    val LightEmptySlot = Color(0xFFE2E8F0)
+    val LightTrayBg = Color(0xFFF1F5F9)
 
+    // Sleek Dark Mode Surfaces
     val DarkCanvas = Color(0xFF0D131A)
     val DarkCard = Color(0xFF161F2C)
-    val DarkBorder = Color(0xFF263345)
+    val DarkBorder = Color(0xFF2D3D52)
     val DarkLip = Color(0xFF1B2636)
     val DarkDisabledBtn = Color(0xFF1E293B)
     val DarkCorrectBanner = Color(0xFF0D2821)
@@ -86,11 +91,11 @@ private val LightColors = lightColorScheme(
     tertiaryContainer = DuoColors.LilacPurpleBg,
     onTertiaryContainer = Color(0xFF4C1D95),
     background = DuoColors.LightCanvas,
-    onBackground = Color(0xFF18181B),
+    onBackground = Color(0xFF0F172A),
     surface = DuoColors.LightCard,
-    onSurface = Color(0xFF18181B),
-    surfaceVariant = Color(0xFFEFEDE8),
-    onSurfaceVariant = Color(0xFF64748B)
+    onSurface = Color(0xFF0F172A),
+    surfaceVariant = Color(0xFFEFF3F8),
+    onSurfaceVariant = Color(0xFF475569)
 )
 
 private val DarkColors = darkColorScheme(
@@ -119,10 +124,12 @@ fun NihongoMasterTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     content: @Composable () -> Unit
 ) {
-    MaterialTheme(
-        colorScheme = if (darkTheme) DarkColors else LightColors,
-        content = content
-    )
+    CompositionLocalProvider(LocalDarkTheme provides darkTheme) {
+        MaterialTheme(
+            colorScheme = if (darkTheme) DarkColors else LightColors,
+            content = content
+        )
+    }
 }
 
 @Composable
@@ -138,13 +145,106 @@ fun subTabColors(selected: Boolean): ButtonColors =
 
 val OnPastel = Color(0xFF0F172A)
 
+// =========================================================================
+// SMART JAPANESE WORD-AWARE TOKENIZER & ROMAJI CONVERTER
+// Prevents splitting words like "おはよう" into "お + は + よう"!
+// =========================================================================
+object SmartJapaneseTokenizer {
+
+    private val knownPhrasesSorted: List<String> by lazy {
+        val vocabWords = DataRepository.vocab.flatMap { listOf(it.kanji, it.kana) }
+        val commonPoliteEndings = listOf(
+            "おはようございます", "ありがとうございます", "よろしくお願いします",
+            "ごちそうさまでした", "いらっしゃいませ", "かしこまりました",
+            "おやすみなさい", "いってきます", "いってらっしゃい", "おかえりなさい",
+            "おめでとうございます", "お疲れ様でした", "お疲れ様です",
+            "ではありませんでした", "ではありません", "じゃありません",
+            "ませんでした", "きましょう", "ましょう", "ました", "ません",
+            "ています", "ていました", "てください", "ないでください",
+            "てもいいですか", "てはいけません", "たいです", "かったです",
+            "おはよう", "こんにちは", "こんばんは", "さようなら", "ありがとう",
+            "すみません", "ごめんなさい", "お願いします", "いただきます",
+            "ただいま", "元気ですか", "元気", "ですか", "ですね", "ですよ", "です", "ます"
+        )
+        (vocabWords + commonPoliteEndings)
+            .map { it.trim() }
+            .filter { it.length >= 2 }
+            .distinct()
+            .sortedByDescending { it.length }
+    }
+
+    private val twoCharParticles = setOf("から", "まで", "より", "だけ", "ほど", "でも")
+    private val oneCharParticles = setOf('は', 'が', 'を', 'に', 'で', 'へ', 'と', 'も', 'の', 'か', 'ね', 'よ')
+
+    fun tokenize(jp: String): List<String> {
+        val clean = jp.replace("。", "").replace("？", "").replace("！", "").trim()
+        if (clean.isEmpty()) return emptyList()
+
+        val tokens = mutableListOf<String>()
+        val buffer = StringBuilder()
+
+        fun flushBuffer() {
+            if (buffer.isNotEmpty()) {
+                tokens.add(buffer.toString())
+                buffer.clear()
+            }
+        }
+
+        var i = 0
+        while (i < clean.length) {
+            val ch = clean[i]
+            if (ch == '、' || ch == ' ' || ch == '　') {
+                flushBuffer()
+                i++
+                continue
+            }
+
+            val remaining = clean.substring(i)
+
+            // 1. Check if remaining starts with a known multi-char vocabulary word or polite expression
+            val matchedWord = knownPhrasesSorted.firstOrNull { remaining.startsWith(it) }
+            if (matchedWord != null) {
+                flushBuffer()
+                tokens.add(matchedWord)
+                i += matchedWord.length
+                continue
+            }
+
+            // 2. Check two-char particle after a flushed token or non-empty buffer
+            val twoChar = if (i + 1 < clean.length) clean.substring(i, i + 2) else ""
+            if (twoChar in twoCharParticles && (buffer.isNotEmpty() || tokens.isNotEmpty())) {
+                flushBuffer()
+                tokens.add(twoChar)
+                i += 2
+                continue
+            }
+
+            // 3. Check one-char particle
+            if (ch in oneCharParticles && (buffer.isNotEmpty() || tokens.isNotEmpty())) {
+                flushBuffer()
+                tokens.add(ch.toString())
+                i++
+                continue
+            }
+
+            buffer.append(ch)
+            i++
+        }
+        flushBuffer()
+        return tokens.ifEmpty { listOf(clean) }
+    }
+}
+
 object RomajiHelper {
     private val kanaMap: Map<String, String> by lazy {
         DataRepository.allKana.associate { it.char to it.romaji } + mapOf(
             "ー" to "-", "っ" to "", "ッ" to "",
             "は" to "wa", "へ" to "e", "を" to "o",
-            "です" to "desu", "ます" to "masu", "ました" to "mashita",
-            "ません" to "masen", "ください" to "kudasai", "さん" to "san"
+            "です" to "desu", "ですか" to "desu ka", "ですね" to "desu ne", "ですよ" to "desu yo",
+            "ます" to "masu", "ました" to "mashita", "ません" to "masen",
+            "ませんでした" to "masen deshita", "ましょう" to "mashou",
+            "ください" to "kudasai", "ています" to "te imasu", "てください" to "te kudasai",
+            "たいです" to "tai desu", "さん" to "san", "ちゃん" to "chan", "くん" to "kun"
         )
     }
 
@@ -208,6 +308,10 @@ object RomajiHelper {
     }
 }
 
+// =========================================================================
+// CRISP, HIGH-CONTRAST WORD TILE & SENTENCE DOCK (FIXED FOR LIGHT & DARK MODE)
+// =========================================================================
+
 @Composable
 fun DuoWordTile(
     text: String,
@@ -218,8 +322,8 @@ fun DuoWordTile(
     isCorrectHighlight: Boolean = false,
     isWrongHighlight: Boolean = false
 ) {
-    val isDark = isSystemInDarkTheme()
-    val shape = RoundedCornerShape(12.dp)
+    val isDark = LocalDarkTheme.current
+    val shape = RoundedCornerShape(14.dp)
     val romaji = if (showRomaji) RomajiHelper.toRomaji(text) else ""
     val isParticle = text in setOf("は", "が", "を", "に", "で", "へ", "と", "の", "も", "から", "まで", "より", "だけ")
 
@@ -227,7 +331,7 @@ fun DuoWordTile(
     val borderColor = when {
         isCorrectHighlight -> DuoColors.FeatherGreen
         isWrongHighlight -> DuoColors.CardinalRed
-        isParticle -> DuoColors.LilacPurple.copy(alpha = 0.65f)
+        isParticle -> DuoColors.LilacPurple
         isDark -> DuoColors.DarkBorder
         else -> DuoColors.LightBorder
     }
@@ -237,13 +341,19 @@ fun DuoWordTile(
         isDark -> DuoColors.DarkCard
         else -> Color.White
     }
+    val mainTextColor = when {
+        isCorrectHighlight && !isDark -> Color(0xFF065F46)
+        isWrongHighlight && !isDark -> Color(0xFF9F1239)
+        isDark -> Color(0xFFF8FAFC)
+        else -> Color(0xFF0F172A)
+    }
 
     if (isPlaceholderSlot) {
         Box(
             modifier = modifier
                 .clip(shape)
                 .background(slotColor)
-                .border(1.dp, borderColor.copy(alpha = 0.25f), shape)
+                .border(1.5.dp, borderColor.copy(alpha = 0.35f), shape)
         ) {
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -252,45 +362,41 @@ fun DuoWordTile(
                     .alpha(0f)
             ) {
                 if (showRomaji && romaji.isNotBlank()) {
-                    Text(text = romaji, fontSize = 10.sp)
+                    Text(text = romaji, fontSize = 11.sp)
                 }
-                Text(text = text, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                Text(text = text, fontSize = 19.sp, fontWeight = FontWeight.ExtraBold)
             }
         }
     } else {
-        Surface(
-            color = surfaceColor,
-            shape = shape,
-            border = BorderStroke(1.5.dp, borderColor),
-            shadowElevation = 2.dp,
-            modifier = modifier.clickable { onClick() }
+        Box(
+            modifier = modifier
+                .clip(shape)
+                .background(borderColor)
+                .clickable { onClick() }
+                .padding(bottom = 3.dp)
         ) {
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.padding(horizontal = 15.dp, vertical = if (showRomaji) 6.dp else 10.dp)
+                modifier = Modifier
+                    .clip(shape)
+                    .background(surfaceColor)
+                    .border(1.5.dp, borderColor, shape)
+                    .padding(horizontal = 16.dp, vertical = if (showRomaji) 7.dp else 11.dp)
             ) {
-                if (isParticle) {
-                    Box(
-                        modifier = Modifier
-                            .size(width = 16.dp, height = 3.dp)
-                            .clip(CircleShape)
-                            .background(DuoColors.LilacPurple)
-                    )
-                    Spacer(Modifier.height(2.dp))
-                }
                 if (showRomaji && romaji.isNotBlank()) {
                     Text(
                         text = romaji,
-                        fontSize = 10.sp,
+                        fontSize = 11.sp,
                         fontWeight = FontWeight.ExtraBold,
-                        color = if (isParticle) DuoColors.LilacPurple else DuoColors.MacawBlue
+                        color = if (isParticle) DuoColors.LilacPurple else DuoColors.MacawBlueDark
                     )
+                    Spacer(Modifier.height(1.dp))
                 }
                 Text(
                     text = text,
-                    fontSize = 18.sp,
+                    fontSize = 19.sp,
                     fontWeight = FontWeight.ExtraBold,
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = mainTextColor
                 )
             }
         }
@@ -306,7 +412,7 @@ fun DuoCharacterAudioPrompt(
     Surface(
         color = MaterialTheme.colorScheme.surface,
         shape = RoundedCornerShape(20.dp),
-        border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.surfaceVariant),
+        border = BorderStroke(1.5.dp, if (LocalDarkTheme.current) DuoColors.DarkBorder else DuoColors.LightBorder),
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(
@@ -341,7 +447,7 @@ fun DuoCharacterAudioPrompt(
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 Surface(
-                    color = DuoColors.MacawBlue.copy(alpha = 0.15f),
+                    color = DuoColors.MacawBlue.copy(alpha = 0.14f),
                     shape = RoundedCornerShape(14.dp),
                     border = BorderStroke(1.5.dp, DuoColors.MacawBlue),
                     modifier = Modifier
@@ -357,12 +463,12 @@ fun DuoCharacterAudioPrompt(
                         Icon(
                             imageVector = Icons.Default.GraphicEq,
                             contentDescription = "Native Speed",
-                            tint = DuoColors.MacawBlue,
+                            tint = DuoColors.MacawBlueDark,
                             modifier = Modifier.size(24.dp)
                         )
                         Spacer(Modifier.width(8.dp))
                         Column {
-                            Text("1.0x Native", fontWeight = FontWeight.ExtraBold, fontSize = 14.sp, color = DuoColors.MacawBlue)
+                            Text("1.0x Native", fontWeight = FontWeight.ExtraBold, fontSize = 14.sp, color = DuoColors.MacawBlueDark)
                             Text("Tap to play", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
@@ -371,7 +477,7 @@ fun DuoCharacterAudioPrompt(
                 Surface(
                     color = MaterialTheme.colorScheme.surfaceVariant,
                     shape = RoundedCornerShape(14.dp),
-                    border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.25f)),
+                    border = BorderStroke(1.5.dp, if (LocalDarkTheme.current) DuoColors.DarkBorder else DuoColors.LightBorder),
                     modifier = Modifier
                         .weight(0.8f)
                         .height(56.dp)
@@ -385,7 +491,7 @@ fun DuoCharacterAudioPrompt(
                         Icon(
                             imageVector = Icons.Default.SlowMotionVideo,
                             contentDescription = "Slow Speed",
-                            tint = DuoColors.FoxOrange,
+                            tint = DuoColors.FoxOrangeDark,
                             modifier = Modifier.size(22.dp)
                         )
                         Spacer(Modifier.width(6.dp))
@@ -410,7 +516,7 @@ fun DuoCharacterSentencePrompt(
     Surface(
         color = MaterialTheme.colorScheme.surface,
         shape = RoundedCornerShape(20.dp),
-        border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.surfaceVariant),
+        border = BorderStroke(1.5.dp, if (LocalDarkTheme.current) DuoColors.DarkBorder else DuoColors.LightBorder),
         modifier = Modifier
             .fillMaxWidth()
             .clickable { onSpeakPrompt() }
@@ -441,14 +547,14 @@ fun DuoCharacterSentencePrompt(
                     Icon(
                         imageVector = Icons.Default.VolumeUp,
                         contentDescription = "Play Audio",
-                        tint = DuoColors.MacawBlue,
+                        tint = DuoColors.MacawBlueDark,
                         modifier = Modifier.size(18.dp)
                     )
                     Text(
                         text = "Listen",
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
-                        color = DuoColors.MacawBlue
+                        color = DuoColors.MacawBlueDark
                     )
                 }
             }
@@ -468,7 +574,7 @@ fun DuoCharacterSentencePrompt(
                     text = subHintText,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.SemiBold,
-                    color = DuoColors.MacawBlue
+                    color = DuoColors.MacawBlueDark
                 )
             }
         }
@@ -482,13 +588,13 @@ fun DuoRuledAnswerArea(
     checkedResult: Boolean?,
     onRemoveTile: (Pair<Int, String>) -> Unit
 ) {
-    val isDark = isSystemInDarkTheme()
+    val isDark = LocalDarkTheme.current
     val borderColor = when (checkedResult) {
         true -> DuoColors.FeatherGreen
         false -> DuoColors.CardinalRed
         null -> if (isDark) DuoColors.DarkBorder else DuoColors.LightBorder
     }
-    val trayBg = if (isDark) Color(0xFF111923) else Color(0xFFEFEDE8)
+    val trayBg = if (isDark) Color(0xFF111923) else DuoColors.LightTrayBg
 
     Surface(
         color = trayBg,
@@ -496,7 +602,7 @@ fun DuoRuledAnswerArea(
         border = BorderStroke(2.dp, borderColor),
         modifier = Modifier
             .fillMaxWidth()
-            .heightIn(min = 126.dp)
+            .heightIn(min = 122.dp)
     ) {
         Column(
             modifier = Modifier
@@ -520,7 +626,7 @@ fun DuoRuledAnswerArea(
                         text = "${selectedTiles.size} words",
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Bold,
-                        color = DuoColors.MacawBlue
+                        color = DuoColors.MacawBlueDark
                     )
                 }
             }
@@ -537,8 +643,8 @@ fun DuoRuledAnswerArea(
                     Text(
                         text = "Tap word blocks below to form the sentence",
                         fontSize = 13.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                        fontWeight = FontWeight.Medium
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontWeight = FontWeight.SemiBold
                     )
                 }
             } else {
@@ -563,8 +669,9 @@ fun DuoRuledAnswerArea(
                 Spacer(Modifier.height(10.dp))
                 val fullRomaji = selectedTiles.joinToString(" ") { RomajiHelper.toRomaji(it.second) }
                 Surface(
-                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.65f),
+                    color = MaterialTheme.colorScheme.surface,
                     shape = RoundedCornerShape(8.dp),
+                    border = BorderStroke(1.dp, borderColor.copy(alpha = 0.4f)),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(
@@ -572,7 +679,7 @@ fun DuoRuledAnswerArea(
                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
-                        color = DuoColors.MacawBlue
+                        color = DuoColors.MacawBlueDark
                     )
                 }
             }
@@ -587,15 +694,14 @@ fun DuoBottomResultBanner(
     romajiSubtitle: String = "",
     onContinue: () -> Unit
 ) {
-    val isDark = isSystemInDarkTheme()
+    val isDark = LocalDarkTheme.current
     val bannerBg = when {
         isCorrect && isDark -> DuoColors.DarkCorrectBanner
         isCorrect && !isDark -> DuoColors.FeatherGreenBg
         !isCorrect && isDark -> DuoColors.DarkWrongBanner
         else -> DuoColors.CardinalRedBg
     }
-    val accentColor = if (isCorrect) DuoColors.FeatherGreen else DuoColors.CardinalRed
-    val lipColor = if (isCorrect) DuoColors.FeatherGreenDark else DuoColors.CardinalRedDark
+    val accentColor = if (isCorrect) DuoColors.FeatherGreenDark else DuoColors.CardinalRedDark
 
     Surface(
         color = bannerBg,
@@ -656,8 +762,8 @@ fun DuoBottomResultBanner(
             Duo3DButton(
                 text = "CONTINUE →",
                 onClick = onContinue,
-                topColor = accentColor,
-                lipColor = lipColor,
+                topColor = if (isCorrect) DuoColors.FeatherGreen else DuoColors.CardinalRed,
+                lipColor = accentColor,
                 textColor = Color.White,
                 modifier = Modifier.fillMaxWidth()
             )
@@ -665,10 +771,6 @@ fun DuoBottomResultBanner(
     }
 }
 
-/**
- * Global Settings Dialog (Opened from `⚙️` in TopAppBar or inside any Lesson):
- * Lets the user select strictly `English` OR `हिन्दी`, `Romaji ON/OFF`, and `Dark/Light Theme`.
- */
 @Composable
 fun DuoLessonSettingsDialog(
     appLanguage: AppLanguage,
@@ -686,7 +788,6 @@ fun DuoLessonSettingsDialog(
         },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                // 1. Exclusive Language Selector (English OR Hindi — never both!)
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Meaning & Translation Language", fontWeight = FontWeight.ExtraBold, fontSize = 14.sp)
                     Text(
@@ -705,7 +806,7 @@ fun DuoLessonSettingsDialog(
                                 shape = RoundedCornerShape(12.dp),
                                 border = BorderStroke(
                                     width = if (selected) 2.dp else 1.dp,
-                                    color = if (selected) DuoColors.FeatherGreen else Color.Transparent
+                                    color = if (selected) DuoColors.FeatherGreenDark else Color.Transparent
                                 ),
                                 modifier = Modifier
                                     .weight(1f)
@@ -719,7 +820,7 @@ fun DuoLessonSettingsDialog(
                                         text = lang.label,
                                         fontWeight = FontWeight.ExtraBold,
                                         fontSize = 13.sp,
-                                        color = if (selected) DuoColors.FeatherGreen else MaterialTheme.colorScheme.onSurface
+                                        color = if (selected) DuoColors.FeatherGreenDark else MaterialTheme.colorScheme.onSurface
                                     )
                                 }
                             }
@@ -729,7 +830,6 @@ fun DuoLessonSettingsDialog(
 
                 HorizontalDivider()
 
-                // 2. Romaji Toggle
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -746,7 +846,6 @@ fun DuoLessonSettingsDialog(
                     Switch(checked = showRomaji, onCheckedChange = onToggleRomaji)
                 }
 
-                // 3. Optional Dark Mode Toggle
                 if (darkTheme != null && onToggleDarkTheme != null) {
                     HorizontalDivider()
                     Row(
@@ -757,7 +856,7 @@ fun DuoLessonSettingsDialog(
                         Column(modifier = Modifier.weight(1f)) {
                             Text("Dark Theme", fontWeight = FontWeight.ExtraBold, fontSize = 14.sp)
                             Text(
-                                "Sumi-Ink dark slate mode for comfortable study",
+                                "Toggle between crisp Light mode and Dark slate mode",
                                 fontSize = 12.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -783,7 +882,7 @@ fun DuoLessonSettingsDialog(
 fun Duo3DCard(
     modifier: Modifier = Modifier,
     containerColor: Color = MaterialTheme.colorScheme.surface,
-    borderColor: Color = if (isSystemInDarkTheme()) DuoColors.DarkBorder else DuoColors.LightBorder,
+    borderColor: Color = if (LocalDarkTheme.current) DuoColors.DarkBorder else DuoColors.LightBorder,
     lipColor: Color = borderColor,
     cornerRadius: Dp = 18.dp,
     lipHeight: Dp = 3.dp,
@@ -820,7 +919,7 @@ fun Duo3DButton(
     enabled: Boolean = true,
     cornerRadius: Dp = 14.dp
 ) {
-    val isDark = isSystemInDarkTheme()
+    val isDark = LocalDarkTheme.current
     val actualTop = if (enabled) topColor else if (isDark) DuoColors.DarkDisabledBtn else Color(0xFFE2E8F0)
     val actualLip = if (enabled) lipColor else if (isDark) Color(0xFF151E29) else Color(0xFFCBD5E1)
     val actualText = if (enabled) textColor else Color(0xFF64748B)
@@ -860,6 +959,7 @@ fun DuoSegmentedTabs(
     activeColor: Color = DuoColors.MacawBlueDark,
     activeLipColor: Color = DuoColors.MacawBlueDark
 ) {
+    val isDark = LocalDarkTheme.current
     Row(
         modifier = modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -867,7 +967,7 @@ fun DuoSegmentedTabs(
         tabs.forEachIndexed { idx, label ->
             val selected = selectedIndex == idx
             val top = if (selected) activeColor else MaterialTheme.colorScheme.surface
-            val lip = if (selected) activeLipColor else if (isSystemInDarkTheme()) DuoColors.DarkBorder else DuoColors.LightBorder
+            val lip = if (selected) activeLipColor else if (isDark) DuoColors.DarkBorder else DuoColors.LightBorder
             val txtColor = if (selected) Color.White else MaterialTheme.colorScheme.onSurface
             val shape = RoundedCornerShape(12.dp)
 
