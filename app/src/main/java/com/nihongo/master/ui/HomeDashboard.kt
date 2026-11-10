@@ -127,7 +127,6 @@ fun HomeDashboardScreen(
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        // Clean 2-Tab Switcher (No wrapped 4-chip clutter!)
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -220,6 +219,9 @@ fun HomeDashboardScreen(
     }
 }
 
+// =========================================================================
+// 1. JR-N5 RAIL PASS SUMMARY BANNER
+// =========================================================================
 @Composable
 private fun JrPassSummaryBanner(
     completedLessons: Int,
@@ -268,7 +270,7 @@ private fun JrPassSummaryBanner(
                     text = "$completedLessons / $totalLessons Stamps",
                     fontSize = 12.sp,
                     fontWeight = FontWeight.ExtraBold,
-                    color = DuoColors.FeatherGreen
+                    color = DuoColors.FeatherGreenDark
                 )
             }
 
@@ -300,13 +302,16 @@ private fun JrPassSummaryBanner(
                     text = "🔥 $streak Day Streak  •  ⚡ $xp XP",
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
-                    color = DuoColors.FoxOrange
+                    color = DuoColors.FoxOrangeDark
                 )
             }
         }
     }
 }
 
+// =========================================================================
+// 2. SHINKANSEN STATION UNIT CARD + EXPANDABLE BENTO STAMPS
+// =========================================================================
 @Composable
 private fun ShinkansenStationUnitItem(
     unit: CurriculumUnit,
@@ -697,7 +702,6 @@ private fun ProgressiveBentoLessonStudio(
 ) {
     val accentColor = Color(unit.accentHex)
 
-    // Pick 5 core words from this lesson node so the learner genuinely learns them and then practices them
     val lessonWords = remember(node, unit) {
         node.vocabList.ifEmpty { unit.unitVocab }.take(5).ifEmpty { DataRepository.vocab.take(5) }
     }
@@ -705,7 +709,7 @@ private fun ProgressiveBentoLessonStudio(
     val steps = remember(lessonWords, appLanguage) {
         val list = mutableListOf<ProgressiveLessonStep>()
 
-        // PHASE 1: TEACH EACH WORD FIRST (So the user is NEVER tested on an unseen word!)
+        // PHASE 1: TEACH EACH WORD FIRST
         lessonWords.forEachIndexed { idx, w ->
             list.add(
                 ProgressiveLessonStep(
@@ -723,7 +727,7 @@ private fun ProgressiveBentoLessonStudio(
             )
         }
 
-        // PHASE 2: QUIZ ONLY ON THE TAUGHT WORDS (Distractors come strictly from `lessonWords`!)
+        // PHASE 2: QUIZ ONLY ON THE TAUGHT WORDS
         lessonWords.take(3).forEachIndexed { idx, w ->
             val targetMeaning = w.meaning(appLanguage)
             val wrongMeanings = lessonWords
@@ -748,7 +752,6 @@ private fun ProgressiveBentoLessonStudio(
                 )
             )
 
-            // Also test selecting the Japanese word from the taught pool
             val wrongJp = lessonWords
                 .filter { it.id != w.id }
                 .map { it.kanji }
@@ -772,11 +775,10 @@ private fun ProgressiveBentoLessonStudio(
             )
         }
 
-        // PHASE 3: SENTENCE FORMATION USING TAUGHT WORDS + TAUGHT DISTRACTORS ONLY!
+        // PHASE 3: SENTENCE FORMATION USING TAUGHT WORDS + SMART TOKENIZER
         val wordsWithSentences = lessonWords.filter { it.exJp.isNotBlank() }.take(3)
         wordsWithSentences.forEachIndexed { idx, w ->
             val sentTokens = splitSentenceForLesson(w.exJp)
-            // Distractor tiles come strictly from the other words taught in THIS lesson!
             val taughtDistractors = lessonWords
                 .filter { it.id != w.id }
                 .map { it.kanji }
@@ -930,7 +932,6 @@ private fun ProgressiveBentoLessonStudio(
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             when (currentEx.type) {
-                // PHASE 1: CLEAN WORD TEACHING CARD (With Example Sentence Breakdown)
                 LessonStepType.TEACH_WORD -> {
                     val v = currentEx.vocabFocus ?: DataRepository.vocab.first()
                     Surface(
@@ -979,7 +980,7 @@ private fun ProgressiveBentoLessonStudio(
                                     text = v.kana,
                                     fontSize = 20.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = DuoColors.MacawBlue
+                                    color = DuoColors.MacawBlueDark
                                 )
                             }
                             if (showRomaji) {
@@ -1001,7 +1002,7 @@ private fun ProgressiveBentoLessonStudio(
                                     modifier = Modifier.padding(horizontal = 18.dp, vertical = 8.dp),
                                     fontSize = 19.sp,
                                     fontWeight = FontWeight.ExtraBold,
-                                    color = DuoColors.FeatherGreen
+                                    color = DuoColors.FeatherGreenDark
                                 )
                             }
 
@@ -1009,7 +1010,6 @@ private fun ProgressiveBentoLessonStudio(
                             HorizontalDivider()
                             Spacer(Modifier.height(12.dp))
 
-                            // Example sentence using this exact word (tappable for audio)
                             Surface(
                                 color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
                                 shape = RoundedCornerShape(14.dp),
@@ -1027,7 +1027,7 @@ private fun ProgressiveBentoLessonStudio(
                                     Spacer(Modifier.height(4.dp))
                                     Text("🔊 ${v.exJp}", fontWeight = FontWeight.ExtraBold, fontSize = 16.sp)
                                     if (showRomaji) {
-                                        Text(v.exRomaji, fontSize = 12.sp, color = DuoColors.MacawBlue, fontWeight = FontWeight.SemiBold)
+                                        Text(v.exRomaji, fontSize = 12.sp, color = DuoColors.MacawBlueDark, fontWeight = FontWeight.SemiBold)
                                     }
                                     Spacer(Modifier.height(2.dp))
                                     Text(v.exEn, fontSize = 13.sp)
@@ -1037,7 +1037,6 @@ private fun ProgressiveBentoLessonStudio(
                     }
                 }
 
-                // PHASE 2: 4-CARD MEANING QUIZ (ONLY TAUGHT WORDS)
                 LessonStepType.QUIZ_MEANING -> {
                     DuoCharacterSentencePrompt(
                         characterEmoji = currentEx.badgeEmoji,
@@ -1050,8 +1049,8 @@ private fun ProgressiveBentoLessonStudio(
                         val isSel = selectedTiles.firstOrNull()?.first == pair.first
                         Duo3DCard(
                             containerColor = if (isSel) accentColor.copy(alpha = 0.16f) else MaterialTheme.colorScheme.surface,
-                            borderColor = if (isSel) accentColor else MaterialTheme.colorScheme.surfaceVariant,
-                            lipColor = if (isSel) accentColor else MaterialTheme.colorScheme.surfaceVariant,
+                            borderColor = if (isSel) accentColor else if (LocalDarkTheme.current) DuoColors.DarkBorder else DuoColors.LightBorder,
+                            lipColor = if (isSel) accentColor else if (LocalDarkTheme.current) DuoColors.DarkBorder else DuoColors.LightBorder,
                             onClick = {
                                 if (checkedResult == null) {
                                     selectedTiles = listOf(pair)
@@ -1069,7 +1068,6 @@ private fun ProgressiveBentoLessonStudio(
                     }
                 }
 
-                // PHASE 2 & 3: WORD & SENTENCE FORMATION FROM TAUGHT WORDS ONLY
                 else -> {
                     if (currentEx.type == LessonStepType.LISTEN_TAUGHT_SENTENCE) {
                         DuoCharacterAudioPrompt(
@@ -1082,7 +1080,7 @@ private fun ProgressiveBentoLessonStudio(
                                 text = "💡 ${currentEx.promptSub}",
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = DuoColors.MacawBlue
+                                color = DuoColors.MacawBlueDark
                             )
                         }
                     } else {
@@ -1131,35 +1129,11 @@ private fun ProgressiveBentoLessonStudio(
     }
 }
 
-private fun splitSentenceForLesson(jp: String): List<String> {
-    val clean = jp.replace("。", "").replace("？", "").replace("！", "").trim()
-    val twoChar = setOf("から", "まで", "より", "だけ")
-    val oneChar = setOf('は', 'が', 'を', 'に', 'で', 'へ', 'と', 'も', 'の')
-    val out = mutableListOf<String>()
-    val cur = StringBuilder()
-    var i = 0
-    while (i < clean.length) {
-        val ch = clean[i]
-        if (ch == '、' || ch == ' ') {
-            if (cur.isNotEmpty()) { out.add(cur.toString()); cur.clear() }
-            i++
-            continue
-        }
-        val pair = if (i + 1 < clean.length) clean.substring(i, i + 2) else ""
-        if (pair in twoChar && cur.isNotEmpty()) {
-            out.add(cur.toString()); out.add(pair); cur.clear(); i += 2
-        } else if (ch in oneChar && cur.isNotEmpty()) {
-            out.add(cur.toString()); out.add(ch.toString()); cur.clear(); i++
-        } else {
-            cur.append(ch); i++
-        }
-    }
-    if (cur.isNotEmpty()) out.add(cur.toString())
-    return out.ifEmpty { listOf(clean) }
-}
+private fun splitSentenceForLesson(jp: String): List<String> =
+    SmartJapaneseTokenizer.tokenize(jp)
 
 // =========================================================================
-// 4. COMPLETELY FIXED STATION HANDBOOK MODAL (NO EMPTY BOX OR VERTICAL TEXT!)
+// 4. STATION HANDBOOK MODAL & SRS REVIEW DECK
 // =========================================================================
 @Composable
 private fun UnitGuidebookModal(
@@ -1190,7 +1164,6 @@ private fun UnitGuidebookModal(
                     .fillMaxSize()
                     .padding(18.dp)
             ) {
-                // Header
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -1217,7 +1190,6 @@ private fun UnitGuidebookModal(
 
                 Spacer(Modifier.height(10.dp))
 
-                // Scrollable LazyColumn of Tip + Clean Word Cards (Zero squeezing or empty gaps!)
                 LazyColumn(
                     modifier = Modifier.weight(1f),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
@@ -1302,7 +1274,7 @@ private fun UnitGuidebookModal(
                                     text = w.meaning(appLanguage),
                                     fontSize = 15.sp,
                                     fontWeight = FontWeight.ExtraBold,
-                                    color = DuoColors.FeatherGreen
+                                    color = DuoColors.FeatherGreenDark
                                 )
 
                                 if (w.exJp.isNotBlank()) {
@@ -1370,7 +1342,7 @@ private fun SrsReviewDeckSection(
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Text("💮", fontSize = 48.sp)
-                        Text("All Daily SRS Reviews Complete!", fontWeight = FontWeight.ExtraBold, fontSize = 16.sp, color = DuoColors.FeatherGreen)
+                        Text("All Daily SRS Reviews Complete!", fontWeight = FontWeight.ExtraBold, fontSize = 16.sp, color = DuoColors.FeatherGreenDark)
                         Spacer(Modifier.height(12.dp))
                         Duo3DButton(text = "RETURN TO JR-N5 CHAPTERS →", onClick = onSwitchToPath)
                     }
@@ -1390,26 +1362,26 @@ private fun SrsReviewDeckSection(
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
                             if (showRomaji) {
-                                Text(cardWord.romaji, fontSize = 13.sp, color = DuoColors.MacawBlue, fontWeight = FontWeight.Bold)
+                                Text(cardWord.romaji, fontSize = 13.sp, color = DuoColors.MacawBlueDark, fontWeight = FontWeight.Bold)
                             }
                             Text(cardWord.kanji, fontSize = 46.sp, fontWeight = FontWeight.ExtraBold)
                             if (showSrsAnswer) {
                                 Spacer(Modifier.height(8.dp))
                                 if (cardWord.kanji != cardWord.kana) {
-                                    Text(cardWord.kana, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = DuoColors.MacawBlue)
+                                    Text(cardWord.kana, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = DuoColors.MacawBlueDark)
                                 }
                                 Text(
                                     text = cardWord.meaning(appLanguage),
                                     fontSize = 18.sp,
                                     fontWeight = FontWeight.ExtraBold,
-                                    color = DuoColors.FeatherGreen
+                                    color = DuoColors.FeatherGreenDark
                                 )
                                 Spacer(Modifier.height(8.dp))
                                 Text(cardWord.exJp, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                                 Text(cardWord.exEn, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             } else {
                                 Spacer(Modifier.height(10.dp))
-                                Text("👆 Tap to flip card", fontSize = 12.sp, color = DuoColors.MacawBlue, fontWeight = FontWeight.Bold)
+                                Text("👆 Tap to flip card", fontSize = 12.sp, color = DuoColors.MacawBlueDark, fontWeight = FontWeight.Bold)
                             }
                         }
                     }
