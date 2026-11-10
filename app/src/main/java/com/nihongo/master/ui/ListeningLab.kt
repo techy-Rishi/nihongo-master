@@ -53,7 +53,6 @@ fun ListeningLabScreen(
         Spacer(Modifier.height(10.dp))
 
         if (subTab < 2) {
-            // Chapter Selector so user only builds sentences from the Chapter they are studying!
             LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 itemsIndexed(units) { idx, u ->
                     FilterChip(
@@ -90,45 +89,6 @@ fun ListeningLabScreen(
     }
 }
 
-private fun tokenizeJapaneseSentence(jp: String): List<String> {
-    val clean = jp.replace("。", "").replace("？", "").replace("！", "").trim()
-    val twoCharParticles = setOf("から", "まで", "より", "だけ", "ほど")
-    val oneCharParticles = setOf('は', 'が', 'を', 'に', 'で', 'へ', 'と', 'も', 'の')
-    val tokens = mutableListOf<String>()
-    val current = StringBuilder()
-
-    var i = 0
-    while (i < clean.length) {
-        val ch = clean[i]
-        if (ch == '、' || ch == ' ') {
-            if (current.isNotEmpty()) {
-                tokens.add(current.toString())
-                current.clear()
-            }
-            i++
-            continue
-        }
-
-        val twoChar = if (i + 1 < clean.length) clean.substring(i, i + 2) else ""
-        if (twoChar in twoCharParticles && current.isNotEmpty()) {
-            tokens.add(current.toString())
-            tokens.add(twoChar)
-            current.clear()
-            i += 2
-        } else if (ch in oneCharParticles && current.isNotEmpty()) {
-            tokens.add(current.toString())
-            tokens.add(ch.toString())
-            current.clear()
-            i++
-        } else {
-            current.append(ch)
-            i++
-        }
-    }
-    if (current.isNotEmpty()) tokens.add(current.toString())
-    return tokens.ifEmpty { listOf(clean) }
-}
-
 @Composable
 private fun ChapterSentenceExerciseView(
     unit: CurriculumUnit,
@@ -142,8 +102,8 @@ private fun ChapterSentenceExerciseView(
     var currentIdx by remember(unit, isAudioListeningMode) { mutableIntStateOf(0) }
     val currentWord = wordsWithEx[currentIdx.coerceIn(0, wordsWithEx.lastIndex)]
 
-    val correctTokens = remember(currentWord) { tokenizeJapaneseSentence(currentWord.exJp) }
-    // Distractors come strictly from the SAME chapter's vocabulary!
+    // Uses SmartJapaneseTokenizer so words like おはよう stay intact!
+    val correctTokens = remember(currentWord) { SmartJapaneseTokenizer.tokenize(currentWord.exJp) }
     val distractorPool = remember(currentWord, unit) {
         unit.unitVocab
             .filter { it.id != currentWord.id }
@@ -274,10 +234,10 @@ fun ContractionsLabView(onSpeak: (String, ListeningSpeed) -> Unit) {
                             text = "${c.formalForm}  ➡️  ${c.casualSpoken}",
                             fontSize = 16.sp,
                             fontWeight = FontWeight.ExtraBold,
-                            color = DuoColors.MacawBlue
+                            color = DuoColors.MacawBlueDark
                         )
                         IconButton(onClick = { onSpeak(c.exCasual, ListeningSpeed.NATURAL) }) {
-                            Icon(Icons.Default.VolumeUp, contentDescription = "Play", tint = DuoColors.MacawBlue)
+                            Icon(Icons.Default.VolumeUp, contentDescription = "Play", tint = DuoColors.MacawBlueDark)
                         }
                     }
                     Text(
@@ -293,7 +253,7 @@ fun ContractionsLabView(onSpeak: (String, ListeningSpeed) -> Unit) {
                             .padding(10.dp)
                     ) {
                         Text("📘 Polite: ${c.exFormal}", fontSize = 12.sp)
-                        Text("🔥 Spoken: ${c.exCasual}", fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = DuoColors.FeatherGreen)
+                        Text("🔥 Spoken: ${c.exCasual}", fontSize = 14.sp, fontWeight = FontWeight.ExtraBold, color = DuoColors.FeatherGreenDark)
                         Text("💬 ${c.exMeaning}", fontSize = 11.sp, color = Color.Gray)
                     }
                 }
