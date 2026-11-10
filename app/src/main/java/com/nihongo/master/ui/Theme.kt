@@ -3,7 +3,6 @@
 package com.nihongo.master.ui
 
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -12,63 +11,58 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.GraphicEq
 import androidx.compose.material.icons.filled.SlowMotionVideo
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.nihongo.master.AppLanguage
 import com.nihongo.master.DataRepository
-import com.nihongo.master.PitchAccentAnalyzer
 
-// =========================================================================
-// NEO-TOKYO SUMI-INK & WASHI COLOR SYSTEM (ORIGINAL & ULTRA-CLEAN)
-// =========================================================================
+val LocalAppLanguage = compositionLocalOf { AppLanguage.ENGLISH }
+val LocalShowRomaji = compositionLocalOf { true }
+
 object DuoColors {
-    // Primary Japanese Accents
-    val FeatherGreen = Color(0xFF10B981)       // Matcha Emerald (Primary Action / Passed)
+    val FeatherGreen = Color(0xFF10B981)
     val FeatherGreenDark = Color(0xFF059669)
     val FeatherGreenBg = Color(0xFFD1FAE5)
 
-    val MacawBlue = Color(0xFF38BDF8)          // Indigo Wave (Audio / Interactive)
+    val MacawBlue = Color(0xFF38BDF8)
     val MacawBlueDark = Color(0xFF0284C7)
     val MacawBlueBg = Color(0xFFE0F2FE)
 
-    val LilacPurple = Color(0xFFA78BFA)        // Fuji Violet (Particles & Grammar)
+    val LilacPurple = Color(0xFFA78BFA)
     val LilacPurpleDark = Color(0xFF7C3AED)
     val LilacPurpleBg = Color(0xFFEDE9FE)
 
-    val FoxOrange = Color(0xFFF59E0B)          // Yuzu Amber (Streak / Highlights)
+    val FoxOrange = Color(0xFFF59E0B)
     val FoxOrangeDark = Color(0xFFD97706)
     val FoxOrangeBg = Color(0xFFFEF3C7)
 
-    val CardinalRed = Color(0xFFF43F5E)        // Sakura Crimson / Hanko Stamp
+    val CardinalRed = Color(0xFFF43F5E)
     val CardinalRedDark = Color(0xFFE11D48)
     val CardinalRedBg = Color(0xFFFFE4E6)
 
-    val BeeGold = Color(0xFFFBBF24)            // Kintsugi Gold
+    val BeeGold = Color(0xFFFBBF24)
     val BeeGoldDark = Color(0xFFD97706)
     val BeeGoldBg = Color(0xFFFEF9C3)
 
-    // Light Mode: Warm Japanese Washi Paper
     val LightCanvas = Color(0xFFF6F5F2)
     val LightCard = Color(0xFFFFFFFF)
     val LightBorder = Color(0xFFE2E0D8)
     val LightLip = Color(0xFFD0CEC4)
     val LightEmptySlot = Color(0xFFECEAE4)
 
-    // Dark Mode: Deep Sumi-Ink Night Slate
     val DarkCanvas = Color(0xFF0D131A)
     val DarkCard = Color(0xFF161F2C)
     val DarkBorder = Color(0xFF263345)
@@ -144,9 +138,6 @@ fun subTabColors(selected: Boolean): ButtonColors =
 
 val OnPastel = Color(0xFF0F172A)
 
-// =========================================================================
-// LIVE ROMAJI & PITCH X-RAY CONVERTER
-// =========================================================================
 object RomajiHelper {
     private val kanaMap: Map<String, String> by lazy {
         DataRepository.allKana.associate { it.char to it.romaji } + mapOf(
@@ -217,72 +208,6 @@ object RomajiHelper {
     }
 }
 
-// =========================================================================
-// UNIQUE "KOTOBENTO" LESSON UI COMPONENTS (NO DUOLINGO CLONE!)
-// =========================================================================
-
-/**
- * 1. Top X-Ray Toggle Pill Bar: Lets the user toggle `[あ/A Romaji]` and `[🇮🇳 Hindi]`
- * directly on the screen with 1 tap (no hidden settings gear required!).
- */
-@Composable
-fun BentoXRayToggleBar(
-    showRomaji: Boolean,
-    onToggleRomaji: (Boolean) -> Unit,
-    showHindi: Boolean,
-    onToggleHindi: (Boolean) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Row(
-        modifier = modifier,
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        XRayPill(
-            label = if (showRomaji) "A Romaji ON" else "A Romaji OFF",
-            active = showRomaji,
-            activeColor = DuoColors.MacawBlue,
-            onClick = { onToggleRomaji(!showRomaji) }
-        )
-        XRayPill(
-            label = if (showHindi) "🇮🇳 Hindi ON" else "🇮🇳 Hindi OFF",
-            active = showHindi,
-            activeColor = DuoColors.FeatherGreen,
-            onClick = { onToggleHindi(!showHindi) }
-        )
-    }
-}
-
-@Composable
-private fun XRayPill(
-    label: String,
-    active: Boolean,
-    activeColor: Color,
-    onClick: () -> Unit
-) {
-    Surface(
-        color = if (active) activeColor.copy(alpha = 0.16f) else MaterialTheme.colorScheme.surfaceVariant,
-        shape = RoundedCornerShape(10.dp),
-        border = BorderStroke(1.dp, if (active) activeColor else Color.Transparent),
-        modifier = Modifier.clickable { onClick() }
-    ) {
-        Text(
-            text = label,
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-            fontSize = 11.sp,
-            fontWeight = FontWeight.ExtraBold,
-            color = if (active) activeColor else MaterialTheme.colorScheme.onSurfaceVariant
-        )
-    }
-}
-
-/**
- * 2. Magnetic Bento Word Tile:
- * - Shows a subtle top accent indicator for Japanese Particles (`は`, `が`, `を`, `に`, `で`)
- *   so beginners naturally sense sentence grammar without garish colors.
- * - Shows crisp Romaji above the word when X-Ray Romaji is ON.
- * - Leaves a recessed Bento slot when placed into the Sentence Dock.
- */
 @Composable
 fun DuoWordTile(
     text: String,
@@ -344,7 +269,6 @@ fun DuoWordTile(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier.padding(horizontal = 15.dp, vertical = if (showRomaji) 6.dp else 10.dp)
             ) {
-                // Subtle top particle indicator pill
                 if (isParticle) {
                     Box(
                         modifier = Modifier
@@ -373,10 +297,6 @@ fun DuoWordTile(
     }
 }
 
-/**
- * 3. Neo-Tokyo Acoustic Studio Card (Replaces Duolingo's Cartoon Person + Speech Bubble):
- * Shows a Japanese Category Seal, visual Pitch Mora Waveform, and integrated Dual-Speed Audio Bar.
- */
 @Composable
 fun DuoCharacterAudioPrompt(
     characterEmoji: String,
@@ -390,7 +310,7 @@ fun DuoCharacterAudioPrompt(
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(
-            modifier = Modifier.padding(18.dp),
+            modifier = Modifier.padding(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Row(
@@ -398,42 +318,35 @@ fun DuoCharacterAudioPrompt(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                Surface(
+                    color = DuoColors.CardinalRed.copy(alpha = 0.14f),
+                    shape = RoundedCornerShape(8.dp),
+                    border = BorderStroke(1.dp, DuoColors.CardinalRed.copy(alpha = 0.4f))
                 ) {
-                    Surface(
-                        color = DuoColors.CardinalRed.copy(alpha = 0.14f),
-                        shape = RoundedCornerShape(8.dp),
-                        border = BorderStroke(1.dp, DuoColors.CardinalRed.copy(alpha = 0.4f))
-                    ) {
-                        Text(
-                            text = "聴解 • AUDIO LAB",
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = DuoColors.CardinalRed
-                        )
-                    }
+                    Text(
+                        text = "聴解 • LISTEN & ASSEMBLE",
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = DuoColors.CardinalRed
+                    )
                 }
                 Text(text = characterEmoji, fontSize = 22.sp)
             }
 
-            Spacer(Modifier.height(14.dp))
+            Spacer(Modifier.height(12.dp))
 
-            // Dual-Speed Studio Pill Controls
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                // 1.0x Native Button
                 Surface(
                     color = DuoColors.MacawBlue.copy(alpha = 0.15f),
                     shape = RoundedCornerShape(14.dp),
                     border = BorderStroke(1.5.dp, DuoColors.MacawBlue),
                     modifier = Modifier
                         .weight(1.2f)
-                        .height(58.dp)
+                        .height(56.dp)
                         .clickable { onPlayNormal() }
                 ) {
                     Row(
@@ -445,33 +358,23 @@ fun DuoCharacterAudioPrompt(
                             imageVector = Icons.Default.GraphicEq,
                             contentDescription = "Native Speed",
                             tint = DuoColors.MacawBlue,
-                            modifier = Modifier.size(26.dp)
+                            modifier = Modifier.size(24.dp)
                         )
                         Spacer(Modifier.width(8.dp))
                         Column {
-                            Text(
-                                text = "1.0x Native",
-                                fontWeight = FontWeight.ExtraBold,
-                                fontSize = 14.sp,
-                                color = DuoColors.MacawBlue
-                            )
-                            Text(
-                                text = "Tap to listen",
-                                fontSize = 10.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                            Text("1.0x Native", fontWeight = FontWeight.ExtraBold, fontSize = 14.sp, color = DuoColors.MacawBlue)
+                            Text("Tap to play", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                 }
 
-                // 0.65x Clear Mora Speed Button
                 Surface(
                     color = MaterialTheme.colorScheme.surfaceVariant,
                     shape = RoundedCornerShape(14.dp),
                     border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.25f)),
                     modifier = Modifier
                         .weight(0.8f)
-                        .height(58.dp)
+                        .height(56.dp)
                         .clickable { onPlaySlow() }
                 ) {
                     Row(
@@ -487,16 +390,8 @@ fun DuoCharacterAudioPrompt(
                         )
                         Spacer(Modifier.width(6.dp))
                         Column {
-                            Text(
-                                text = "0.65x Slow",
-                                fontWeight = FontWeight.ExtraBold,
-                                fontSize = 13.sp
-                            )
-                            Text(
-                                text = "Clear Mora",
-                                fontSize = 10.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                            Text("0.65x Slow", fontWeight = FontWeight.ExtraBold, fontSize = 13.sp)
+                            Text("Clear Mora", fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                 }
@@ -505,10 +400,6 @@ fun DuoCharacterAudioPrompt(
     }
 }
 
-/**
- * 4. Bento Prompt Card (Replaces Cartoon Person + Speech Bubble for Translation):
- * Clean Japanese Bento Prompt with Meaning, Hindi Sense, and 1-Tap Audio Preview.
- */
 @Composable
 fun DuoCharacterSentencePrompt(
     characterEmoji: String,
@@ -535,7 +426,7 @@ fun DuoCharacterSentencePrompt(
                     shape = RoundedCornerShape(8.dp)
                 ) {
                     Text(
-                        text = "翻訳 • MEANING PROMPT",
+                        text = "翻訳 • TRANSLATE TO JAPANESE",
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
                         fontSize = 10.sp,
                         fontWeight = FontWeight.ExtraBold,
@@ -554,7 +445,7 @@ fun DuoCharacterSentencePrompt(
                         modifier = Modifier.size(18.dp)
                     )
                     Text(
-                        text = "Audio Hint",
+                        text = "Listen",
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
                         color = DuoColors.MacawBlue
@@ -566,29 +457,24 @@ fun DuoCharacterSentencePrompt(
 
             Text(
                 text = promptText,
-                fontSize = 21.sp,
+                fontSize = 20.sp,
                 fontWeight = FontWeight.ExtraBold,
                 color = MaterialTheme.colorScheme.onSurface
             )
 
             if (subHintText.isNotBlank()) {
-                Spacer(Modifier.height(6.dp))
+                Spacer(Modifier.height(4.dp))
                 Text(
                     text = subHintText,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = DuoColors.FeatherGreen
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = DuoColors.MacawBlue
                 )
             }
         }
     }
 }
 
-/**
- * 5. Magnetic Bento Sentence Dock (Replaces Duolingo's 3 Notebook Lines):
- * - Snaps selected tiles into a clean recessed Japanese Bento tray.
- * - Automatically displays the combined live Romaji sentence along the bottom bar of the tray!
- */
 @Composable
 fun DuoRuledAnswerArea(
     selectedTiles: List<Pair<Int, String>>,
@@ -610,7 +496,7 @@ fun DuoRuledAnswerArea(
         border = BorderStroke(2.dp, borderColor),
         modifier = Modifier
             .fillMaxWidth()
-            .heightIn(min = 138.dp)
+            .heightIn(min = 126.dp)
     ) {
         Column(
             modifier = Modifier
@@ -624,14 +510,14 @@ fun DuoRuledAnswerArea(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "BENTO SENTENCE DOCK (Tap tile to remove)",
+                    text = "YOUR JAPANESE SENTENCE (Tap tile to remove)",
                     fontSize = 10.sp,
                     fontWeight = FontWeight.ExtraBold,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 if (selectedTiles.isNotEmpty()) {
                     Text(
-                        text = "${selectedTiles.size} blocks",
+                        text = "${selectedTiles.size} words",
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Bold,
                         color = DuoColors.MacawBlue
@@ -645,11 +531,11 @@ fun DuoRuledAnswerArea(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 22.dp),
+                        .padding(vertical = 18.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = "Tap Japanese blocks below to assemble your answer",
+                        text = "Tap word blocks below to form the sentence",
                         fontSize = 13.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                         fontWeight = FontWeight.Medium
@@ -673,7 +559,6 @@ fun DuoRuledAnswerArea(
                 }
             }
 
-            // Live Romaji Phonetic Preview Strip at the bottom of the Bento Dock
             if (showRomaji && selectedTiles.isNotEmpty()) {
                 Spacer(Modifier.height(10.dp))
                 val fullRomaji = selectedTiles.joinToString(" ") { RomajiHelper.toRomaji(it.second) }
@@ -695,10 +580,6 @@ fun DuoRuledAnswerArea(
     }
 }
 
-/**
- * 6. Japanese Hanko Seal Verification Banner (`合格` Passed / `再確認` Review):
- * Authentic Japanese red/emerald stamp badge instead of Duolingo's "Amazing!" clone sheet.
- */
 @Composable
 fun DuoBottomResultBanner(
     isCorrect: Boolean,
@@ -731,7 +612,6 @@ fun DuoBottomResultBanner(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                // Authentic Japanese Hanko Stamp Circle (`合格` or `見直`)
                 Box(
                     modifier = Modifier
                         .size(44.dp)
@@ -750,7 +630,7 @@ fun DuoBottomResultBanner(
 
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = if (isCorrect) "正解 • Seikai (Spot On!)" else "正しい答え • Target Solution",
+                        text = if (isCorrect) "正解 • Correct!" else "Target Answer:",
                         fontSize = 16.sp,
                         fontWeight = FontWeight.ExtraBold,
                         color = accentColor
@@ -774,7 +654,7 @@ fun DuoBottomResultBanner(
             Spacer(Modifier.height(14.dp))
 
             Duo3DButton(
-                text = "NEXT STEP →",
+                text = "CONTINUE →",
                 onClick = onContinue,
                 topColor = accentColor,
                 lipColor = lipColor,
@@ -785,30 +665,80 @@ fun DuoBottomResultBanner(
     }
 }
 
+/**
+ * Global Settings Dialog (Opened from `⚙️` in TopAppBar or inside any Lesson):
+ * Lets the user select strictly `English` OR `हिन्दी`, `Romaji ON/OFF`, and `Dark/Light Theme`.
+ */
 @Composable
 fun DuoLessonSettingsDialog(
+    appLanguage: AppLanguage,
+    onSelectLanguage: (AppLanguage) -> Unit,
     showRomaji: Boolean,
     onToggleRomaji: (Boolean) -> Unit,
-    showHindiHints: Boolean,
-    onToggleHindi: (Boolean) -> Unit,
+    darkTheme: Boolean? = null,
+    onToggleDarkTheme: (() -> Unit)? = null,
     onDismiss: () -> Unit
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
-            Text("🔍 X-Ray Script & Hint Settings", fontWeight = FontWeight.ExtraBold, fontSize = 18.sp)
+            Text("⚙️ App & Lesson Settings", fontWeight = FontWeight.ExtraBold, fontSize = 18.sp)
         },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                // 1. Exclusive Language Selector (English OR Hindi — never both!)
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Meaning & Translation Language", fontWeight = FontWeight.ExtraBold, fontSize = 14.sp)
+                    Text(
+                        "Show meanings and sentence prompts in your preferred language only:",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        AppLanguage.entries.forEach { lang ->
+                            val selected = appLanguage == lang
+                            Surface(
+                                color = if (selected) DuoColors.FeatherGreen.copy(alpha = 0.18f) else MaterialTheme.colorScheme.surfaceVariant,
+                                shape = RoundedCornerShape(12.dp),
+                                border = BorderStroke(
+                                    width = if (selected) 2.dp else 1.dp,
+                                    color = if (selected) DuoColors.FeatherGreen else Color.Transparent
+                                ),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clickable { onSelectLanguage(lang) }
+                            ) {
+                                Box(
+                                    modifier = Modifier.padding(vertical = 12.dp, horizontal = 8.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = lang.label,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        fontSize = 13.sp,
+                                        color = if (selected) DuoColors.FeatherGreen else MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                HorizontalDivider()
+
+                // 2. Romaji Toggle
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("Romaji Pronunciation Guide", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                        Text("Show Romaji (Pronunciation)", fontWeight = FontWeight.ExtraBold, fontSize = 14.sp)
                         Text(
-                            "Show phonetic reading above every Japanese tile & in the Bento Dock",
+                            "Display phonetic reading above Japanese word tiles",
                             fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -816,40 +746,38 @@ fun DuoLessonSettingsDialog(
                     Switch(checked = showRomaji, onCheckedChange = onToggleRomaji)
                 }
 
-                HorizontalDivider()
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("Hindi Meaning Bridge (🇮🇳)", fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                        Text(
-                            "Show Hindi translation alongside English prompts (SOV word-order match)",
-                            fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                // 3. Optional Dark Mode Toggle
+                if (darkTheme != null && onToggleDarkTheme != null) {
+                    HorizontalDivider()
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Dark Theme", fontWeight = FontWeight.ExtraBold, fontSize = 14.sp)
+                            Text(
+                                "Sumi-Ink dark slate mode for comfortable study",
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Switch(checked = darkTheme, onCheckedChange = { onToggleDarkTheme() })
                     }
-                    Switch(checked = showHindiHints, onToggleHindi)
                 }
             }
         },
         confirmButton = {
             Duo3DButton(
-                text = "SAVE & CLOSE",
+                text = "DONE",
                 onClick = onDismiss,
-                topColor = DuoColors.MacawBlueDark,
-                lipColor = DuoColors.MacawBlueDark,
+                topColor = DuoColors.FeatherGreen,
+                lipColor = DuoColors.FeatherGreenDark,
                 modifier = Modifier.fillMaxWidth()
             )
         }
     )
 }
-
-// =========================================================================
-// SHARED TACTILE CARDS & BUTTONS
-// =========================================================================
 
 @Composable
 fun Duo3DCard(
