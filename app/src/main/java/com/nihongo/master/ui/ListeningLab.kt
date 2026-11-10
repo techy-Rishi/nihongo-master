@@ -2,11 +2,12 @@
 
 package com.nihongo.master.ui
 
-import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -17,7 +18,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -31,13 +31,13 @@ fun ListeningLabScreen(
     onSpeak: (String, ListeningSpeed) -> Unit,
     onAwardXp: (Int) -> Unit
 ) {
-    val context = LocalContext.current
-    val prefs = remember { context.getSharedPreferences("nihongo_master", Context.MODE_PRIVATE) }
+    val appLanguage = LocalAppLanguage.current
+    val showRomaji = LocalShowRomaji.current
 
-    var showRomaji by remember { mutableStateOf(prefs.getBoolean("show_romaji", true)) }
-    var showHindiHints by remember { mutableStateOf(prefs.getBoolean("show_hindi_hints", true)) }
-
-    var subTab by remember { mutableIntStateOf(0) } // 0: Acoustic Studio, 1: Bento Sentence Dock, 2: Spoken Slang
+    var subTab by remember { mutableIntStateOf(0) } // 0: Chapter Sentence Builder, 1: Audio Studio, 2: Spoken Slang
+    val units = remember { CurriculumEngine.buildUnitsForLevel(JlptLevel.N5) }
+    var selectedUnitIdx by remember { mutableIntStateOf(0) }
+    val activeUnit = units[selectedUnitIdx.coerceIn(0, units.lastIndex)]
 
     Column(
         modifier = Modifier
@@ -45,53 +45,43 @@ fun ListeningLabScreen(
             .padding(horizontal = 16.dp, vertical = 10.dp)
     ) {
         DuoSegmentedTabs(
-            tabs = listOf("🎧 Audio Studio", "🍱 Bento Builder", "⚡ Tokyo Slang"),
+            tabs = listOf("🍱 Sentence Builder", "🎧 Audio Decode", "⚡ Tokyo Slang"),
             selectedIndex = subTab,
             onSelect = { subTab = it }
         )
 
-        Spacer(Modifier.height(8.dp))
-
-        // Live 1-Tap X-Ray Toggle Strip
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = "X-RAY SCRIPT OVERLAY:",
-                fontSize = 10.sp,
-                fontWeight = FontWeight.ExtraBold,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            BentoXRayToggleBar(
-                showRomaji = showRomaji,
-                onToggleRomaji = {
-                    showRomaji = it
-                    prefs.edit().putBoolean("show_romaji", it).apply()
-                },
-                showHindi = showHindiHints,
-                onToggleHindi = {
-                    showHindiHints = it
-                    prefs.edit().putBoolean("show_hindi_hints", it).apply()
-                }
-            )
-        }
-
         Spacer(Modifier.height(10.dp))
 
+        if (subTab < 2) {
+            // Chapter Selector so user only builds sentences from the Chapter they are studying!
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                itemsIndexed(units) { idx, u ->
+                    FilterChip(
+                        selected = selectedUnitIdx == idx,
+                        onClick = { selectedUnitIdx = idx },
+                        label = {
+                            Text("Ch ${u.unitNumber}: ${u.mascotCaption}", fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                        }
+                    )
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+        }
+
         when (subTab) {
-            0 -> BentoTileStudioExerciseView(
-                isAudioListeningMode = true,
+            0 -> ChapterSentenceExerciseView(
+                unit = activeUnit,
+                isAudioListeningMode = false,
+                appLanguage = appLanguage,
                 showRomaji = showRomaji,
-                showHindiHints = showHindiHints,
                 onSpeak = onSpeak,
                 onAwardXp = onAwardXp
             )
-            1 -> BentoTileStudioExerciseView(
-                isAudioListeningMode = false,
+            1 -> ChapterSentenceExerciseView(
+                unit = activeUnit,
+                isAudioListeningMode = true,
+                appLanguage = appLanguage,
                 showRomaji = showRomaji,
-                showHindiHints = showHindiHints,
                 onSpeak = onSpeak,
                 onAwardXp = onAwardXp
             )
@@ -140,33 +130,37 @@ private fun tokenizeJapaneseSentence(jp: String): List<String> {
 }
 
 @Composable
-private fun BentoTileStudioExerciseView(
+private fun ChapterSentenceExerciseView(
+    unit: CurriculumUnit,
     isAudioListeningMode: Boolean,
+    appLanguage: AppLanguage,
     showRomaji: Boolean,
-    showHindiHints: Boolean,
     onSpeak: (String, ListeningSpeed) -> Unit,
     onAwardXp: (Int) -> Unit
 ) {
-    val pool = DataRepository.allSentences
-    var currentIdx by remember(isAudioListeningMode) { mutableIntStateOf(0) }
-    val sentence = pool[currentIdx.coerceIn(0, pool.lastIndex)]
+    val wordsWithEx = remember(unit) { unit.unitVocab.filter { it.exJp.isNotBlank() } }
+    var currentIdx by remember(unit, isAudioListeningMode) { mutableIntStateOf(0) }
+    val currentWord = wordsWithEx[currentIdx.coerceIn(0, wordsWithEx.lastIndex)]
 
-    val correctTokens = remember(sentence) { tokenizeJapaneseSentence(sentence.jp) }
-    val distractorPool = remember(sentence) {
-        listOf("ひと", "か", "さん", "ホテル", "どこ", "ません")
+    val correctTokens = remember(currentWord) { tokenizeJapaneseSentence(currentWord.exJp) }
+    // Distractors come strictly from the SAME chapter's vocabulary!
+    val distractorPool = remember(currentWord, unit) {
+        unit.unitVocab
+            .filter { it.id != currentWord.id }
+            .map { it.kanji }
             .filter { it !in correctTokens }
             .shuffled()
             .take(2)
     }
-    val allBankTiles = remember(sentence) {
+    val allBankTiles = remember(currentWord) {
         (correctTokens + distractorPool).mapIndexed { index, text -> index to text }.shuffled()
     }
 
-    var selectedTiles by remember(sentence, isAudioListeningMode) { mutableStateOf(listOf<Pair<Int, String>>()) }
-    var checkedState by remember(sentence, isAudioListeningMode) { mutableStateOf<Boolean?>(null) }
+    var selectedTiles by remember(currentWord, isAudioListeningMode) { mutableStateOf(listOf<Pair<Int, String>>()) }
+    var checkedState by remember(currentWord, isAudioListeningMode) { mutableStateOf<Boolean?>(null) }
 
-    LaunchedEffect(sentence, isAudioListeningMode) {
-        onSpeak(sentence.jp, ListeningSpeed.NATURAL)
+    LaunchedEffect(currentWord, isAudioListeningMode) {
+        onSpeak(currentWord.exJp, ListeningSpeed.NATURAL)
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
@@ -178,20 +172,24 @@ private fun BentoTileStudioExerciseView(
         ) {
             if (isAudioListeningMode) {
                 DuoCharacterAudioPrompt(
-                    characterEmoji = "🎧",
-                    onPlayNormal = { onSpeak(sentence.jp, ListeningSpeed.NATURAL) },
-                    onPlaySlow = { onSpeak(sentence.jp, ListeningSpeed.SLOW) }
+                    characterEmoji = unit.mascotEmoji,
+                    onPlayNormal = { onSpeak(currentWord.exJp, ListeningSpeed.NATURAL) },
+                    onPlaySlow = { onSpeak(currentWord.exJp, ListeningSpeed.SLOW) }
                 )
             } else {
+                val promptStr = if (appLanguage == AppLanguage.HINDI) {
+                    "${currentWord.exEn}\n(${currentWord.headwordWithReading} = ${currentWord.hi})"
+                } else {
+                    currentWord.exEn
+                }
                 DuoCharacterSentencePrompt(
-                    characterEmoji = "🍱",
-                    promptText = sentence.en,
-                    subHintText = if (showHindiHints) "🇮🇳 ${sentence.hi}" else "",
-                    onSpeakPrompt = { onSpeak(sentence.jp, ListeningSpeed.NATURAL) }
+                    characterEmoji = unit.mascotEmoji,
+                    promptText = promptStr,
+                    subHintText = "Key Word: ${currentWord.headwordWithReading} (${currentWord.meaning(appLanguage)})",
+                    onSpeakPrompt = { onSpeak(currentWord.exJp, ListeningSpeed.NATURAL) }
                 )
             }
 
-            // Magnetic Bento Sentence Dock
             DuoRuledAnswerArea(
                 selectedTiles = selectedTiles,
                 showRomaji = showRomaji,
@@ -203,7 +201,6 @@ private fun BentoTileStudioExerciseView(
                 }
             )
 
-            // Fixed-Slot Word Blocks
             FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -228,7 +225,7 @@ private fun BentoTileStudioExerciseView(
 
         if (checkedState == null) {
             Duo3DButton(
-                text = "VERIFY SENTENCE (確認)",
+                text = "CHECK SENTENCE",
                 enabled = selectedTiles.isNotEmpty(),
                 onClick = {
                     val userBuilt = selectedTiles.joinToString("") { it.second }
@@ -236,7 +233,7 @@ private fun BentoTileStudioExerciseView(
                     val passed = (userBuilt == targetBuilt)
                     checkedState = passed
                     if (passed) onAwardXp(20)
-                    onSpeak(sentence.jp, ListeningSpeed.NATURAL)
+                    onSpeak(currentWord.exJp, ListeningSpeed.NATURAL)
                 },
                 topColor = DuoColors.FeatherGreen,
                 lipColor = DuoColors.FeatherGreenDark,
@@ -245,10 +242,10 @@ private fun BentoTileStudioExerciseView(
         } else {
             DuoBottomResultBanner(
                 isCorrect = checkedState == true,
-                correctAnswerText = "${sentence.jp} — ${sentence.en}",
-                romajiSubtitle = "${sentence.romaji} • 🇮🇳 ${sentence.hi}",
+                correctAnswerText = "${currentWord.exJp} — ${currentWord.exEn}",
+                romajiSubtitle = "${currentWord.exRomaji} • ${currentWord.headwordWithReading} = ${currentWord.meaning(appLanguage)}",
                 onContinue = {
-                    currentIdx = (currentIdx + 1) % pool.size
+                    currentIdx = (currentIdx + 1) % wordsWithEx.size
                 }
             )
         }
@@ -284,7 +281,7 @@ fun ContractionsLabView(onSpeak: (String, ListeningSpeed) -> Unit) {
                         }
                     }
                     Text(
-                        text = "🇮🇳 ${c.explanationHi}",
+                        text = c.explanationHi,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.SemiBold
                     )
