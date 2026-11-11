@@ -1,6 +1,5 @@
 package com.nihongo.master.ui
 
-import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Paint
 import androidx.compose.foundation.BorderStroke
@@ -16,9 +15,10 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.*
+import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -38,39 +38,33 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.nihongo.master.*
-import kotlin.math.max
-import kotlin.math.min
 import kotlin.math.roundToInt
 
 // =========================================================================
-// ALL KANA ROWS FOR SPECIFIC ROW PRACTICE vs OVERALL PRACTICE
+// SPECIFIC ROWS FOR ROW-WISE OR OVERALL PRACTICE
 // =========================================================================
 private enum class KanaRowFilter(
     val label: String,
-    val tipEn: String,
-    val tipHi: String,
     val romajiSet: Set<String>?
 ) {
-    VOWELS("A-Row (あ-お)", "5 core vowels: a, i, u, e, o", "5 मूल स्वर: अ (a), इ (i), उ (u), ए (e), ओ (o)", setOf("a", "i", "u", "e", "o")),
-    K_ROW("K-Row (か-こ)", "K-consonant row: ka, ki, ku, ke, ko", "क-वर्ग: ka, ki, ku, ke, ko", setOf("ka", "ki", "ku", "ke", "ko")),
-    S_ROW("S-Row (さ-そ)", "Note: し is 'shi' (not si)", "ध्यान दें: し = 'shi' (सी नहीं, शी!)", setOf("sa", "shi", "su", "se", "so")),
-    T_ROW("T-Row (た-と)", "Note: ち is 'chi' and つ is 'tsu'", "ध्यान दें: ち = 'chi' और つ = 'tsu'", setOf("ta", "chi", "tsu", "te", "to")),
-    N_ROW("N-Row (な-の)", "N-consonant row: na, ni, nu, ne, no", "न-वर्ग: na, ni, nu, ne, no", setOf("na", "ni", "nu", "ne", "no")),
-    H_ROW("H-Row (は-ほ)", "Note: ふ is pronounced softly as 'fu'", "ध्यान दें: ふ = 'fu' (हल्के होंठों से फू)", setOf("ha", "hi", "fu", "he", "ho")),
-    M_ROW("M-Row (ま-も)", "M-consonant row: ma, mi, mu, me, mo", "म-वर्ग: ma, mi, mu, me, mo", setOf("ma", "mi", "mu", "me", "mo")),
-    Y_ROW("Y-Row (や-よ)", "3 Y-sounds: ya, yu, yo", "य-वर्ग के 3 अक्षर: ya, yu, yo", setOf("ya", "yu", "yo")),
-    R_ROW("R-Row (ら-ろ)", "Japanese R is a light tap between R and L", "र-वर्ग: ra, ri, ru, re, ro", setOf("ra", "ri", "ru", "re", "ro")),
-    W_ROW("W/N-Row (わ-ん)", "wa, particle wo (を), and nasal n (ん)", "व, पार्टिकल を (o), और नाक की ध्वनि ん (n)", setOf("wa", "wo", "n")),
-    ALL_BASIC("All 46 Basic", "Complete 46 Gojūon characters", "पूरे 46 मूल अक्षर (Gojūon)", null),
-    DAKUTEN("Dakuten ゛゜ (25)", "Voiced (g, z, d, b) & p-sounds", "बिंदु (゛) और गोला (゜) वाले 25 अक्षर", null),
-    COMBO("Yōon Combo (33)", "Glided sounds with small ゃ, ゅ, ょ", "छोटा ゃ/ゅ/ょ जुड़कर बनने वाले 33 अक्षर", null);
-
-    fun tip(lang: AppLanguage): String = if (lang == AppLanguage.HINDI) tipHi else tipEn
+    ALL_OVERALL("All Characters (Overall)", null),
+    VOWELS("A-Row (あ い う え お)", setOf("a", "i", "u", "e", "o")),
+    K_ROW("K-Row (か き く け こ)", setOf("ka", "ki", "ku", "ke", "ko")),
+    S_ROW("S-Row (さ し す せ そ)", setOf("sa", "shi", "su", "se", "so")),
+    T_ROW("T-Row (た ち つ て と)", setOf("ta", "chi", "tsu", "te", "to")),
+    N_ROW("N-Row (な に ぬ ね の)", setOf("na", "ni", "nu", "ne", "no")),
+    H_ROW("H-Row (は ひ ふ へ ほ)", setOf("ha", "hi", "fu", "he", "ho")),
+    M_ROW("M-Row (ま み む め も)", setOf("ma", "mi", "mu", "me", "mo")),
+    Y_ROW("Y-Row (や ゆ よ)", setOf("ya", "yu", "yo")),
+    R_ROW("R-Row (ら り る れ ろ)", setOf("ra", "ri", "ru", "re", "ro")),
+    W_ROW("W/N-Row (わ を ん)", setOf("wa", "wo", "n")),
+    DAKUTEN("Dakuten ゛゜ (25)", null),
+    COMBO("Yōon Combo (33)", null);
 
     fun filterKana(type: KanaType): List<KanaChar> {
         return DataRepository.allKana.filter { k ->
             k.type == type && when (this) {
-                ALL_BASIC -> k.group == KanaGroup.BASIC
+                ALL_OVERALL -> k.group == KanaGroup.BASIC
                 DAKUTEN -> k.group == KanaGroup.VOICED
                 COMBO -> k.group == KanaGroup.COMBO
                 else -> k.group == KanaGroup.BASIC && (romajiSet?.contains(k.romaji) == true)
@@ -79,25 +73,32 @@ private enum class KanaRowFilter(
     }
 }
 
-private val HINDI_ROMAJI_MAP = mapOf(
-    "a" to "अ", "i" to "इ", "u" to "उ", "e" to "ए", "o" to "ओ",
-    "ka" to "का", "ki" to "की", "ku" to "कू", "ke" to "के", "ko" to "को",
-    "sa" to "सा", "shi" to "शी", "su" to "सू", "se" to "से", "so" to "सो",
-    "ta" to "ता", "chi" to "ची", "tsu" to "त्सु", "te" to "ते", "to" to "तो",
-    "na" to "ना", "ni" to "नी", "nu" to "नू", "ne" to "ने", "no" to "नो",
-    "ha" to "हा", "hi" to "ही", "fu" to "फू", "he" to "हे", "ho" to "हो",
-    "ma" to "मा", "mi" to "मी", "mu" to "मू", "me" to "मे", "mo" to "मो",
-    "ya" to "या", "yu" to "यू", "yo" to "यो",
-    "ra" to "रा", "ri" to "री", "ru" to "रू", "re" to "रे", "ro" to "रो",
-    "wa" to "वा", "wo" to "ओ", "n" to "न्"
-)
+/**
+ * Builds the authentic 5-column Gojūon grid rows with `null` for empty slots
+ * (`や _ ゆ _ よ`, `わ _ _ _ を`, `ん _ _ _ _`) matching the screenshot!
+ */
+private fun buildGojuonFiveColumnRows(type: KanaType, basicKana: List<KanaChar>): List<List<KanaChar?>> {
+    val byRomaji = basicKana.filter { it.type == type && it.group == KanaGroup.BASIC }.associateBy { it.romaji }
+    val rowTemplates = listOf(
+        listOf("a", "i", "u", "e", "o"),
+        listOf("ka", "ki", "ku", "ke", "ko"),
+        listOf("sa", "shi", "su", "se", "so"),
+        listOf("ta", "chi", "tsu", "te", "to"),
+        listOf("na", "ni", "nu", "ne", "no"),
+        listOf("ha", "hi", "fu", "he", "ho"),
+        listOf("ma", "mi", "mu", "me", "mo"),
+        listOf("ya", null, "yu", null, "yo"),
+        listOf("ra", "ri", "ru", "re", "ro"),
+        listOf("wa", null, null, null, "wo"),
+        listOf("n", null, null, null, null)
+    )
+    return rowTemplates.map { row -> row.map { r -> if (r == null) null else byRomaji[r] } }
+}
 
 // =========================================================================
-// FORGIVING BITMAP OVERLAP TRACING ACCURACY EVALUATOR
-// Compares user's finger strokes against the target character shape!
+// FORGIVING BITMAP OVERLAP TRACING EVALUATOR (NO PERCENTAGE TEXT SHOWN)
 // =========================================================================
 private data class TraceEvaluation(
-    val accuracyPercent: Int,
     val isPassed: Boolean,
     val feedbackText: String
 )
@@ -112,13 +113,12 @@ private object TraceAccuracyEvaluator {
         canvasHeightPx: Float
     ): TraceEvaluation {
         if (strokes.isEmpty() || canvasWidthPx <= 10f || canvasHeightPx <= 10f) {
-            return TraceEvaluation(0, false, "Draw on the canvas following the character guide.")
+            return TraceEvaluation(false, "Trace the character strokes on the canvas.")
         }
 
         val scaleX = GRID_SIZE / canvasWidthPx
         val scaleY = GRID_SIZE / canvasHeightPx
 
-        // 1. Render target character onto a 120x120 reference bitmap with a generous tolerance halo
         val refBitmap = Bitmap.createBitmap(GRID_SIZE, GRID_SIZE, Bitmap.Config.ARGB_8888)
         val refCanvas = android.graphics.Canvas(refBitmap)
         val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -127,19 +127,18 @@ private object TraceAccuracyEvaluator {
             textSize = if (targetChar.length > 1) GRID_SIZE * 0.48f else GRID_SIZE * 0.72f
             isFakeBoldText = true
             style = Paint.Style.FILL_AND_STROKE
-            strokeWidth = 6f // Forgiving tolerance zone around the character
+            strokeWidth = 6f
         }
         val fontMetrics = textPaint.fontMetrics
         val centerY = (GRID_SIZE / 2f) - (fontMetrics.ascent + fontMetrics.descent) / 2f
         refCanvas.drawText(targetChar, GRID_SIZE / 2f, centerY, textPaint)
 
-        // 2. Render user's drawn strokes onto a 120x120 user bitmap
         val userBitmap = Bitmap.createBitmap(GRID_SIZE, GRID_SIZE, Bitmap.Config.ARGB_8888)
         val userCanvas = android.graphics.Canvas(userBitmap)
         val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = android.graphics.Color.BLACK
             style = Paint.Style.STROKE
-            strokeWidth = 14f // Generous finger-brush radius for smooth overlap
+            strokeWidth = 14f
             strokeCap = Paint.Cap.ROUND
             strokeJoin = Paint.Join.ROUND
         }
@@ -178,30 +177,53 @@ private object TraceAccuracyEvaluator {
         }
 
         if (refPixels == 0 || userPixels < 25) {
-            return TraceEvaluation(15, false, "Keep tracing! Cover the full character shape.")
+            return TraceEvaluation(false, "Keep tracing to complete the character shape.")
         }
 
-        val coverage = coveredRefPixels.toFloat() / refPixels.toFloat()     // How much of the character was traced
-        val precision = onTrackUserPixels.toFloat() / userPixels.toFloat()   // How close the strokes stayed to the guide
-
-        // Forgiving curve so a reasonable human trace scores 65%–98%
+        val coverage = coveredRefPixels.toFloat() / refPixels.toFloat()
+        val precision = onTrackUserPixels.toFloat() / userPixels.toFloat()
         val rawScore = (coverage * 0.62f + precision * 0.38f) * 125f
         val accuracy = rawScore.roundToInt().coerceIn(10, 99)
         val passed = accuracy >= 55 && coverage >= 0.32f
 
         val feedback = when {
-            accuracy >= 85 -> "✨ $accuracy% Accuracy • Master Calligraphy! (+15 XP & +25% Mastery)"
-            passed -> "✅ $accuracy% Accuracy • Good Trace! (+15 XP & +25% Mastery)"
-            coverage < 0.32f -> "⚠️ $accuracy% Accuracy • Trace all strokes of 「$targetChar」 completely"
-            else -> "🔄 $accuracy% Accuracy • Stay closer to the guide lines and try again"
+            passed -> "✨ Well done! Progress bar increased."
+            coverage < 0.32f -> "⚠️ Complete all strokes of 「$targetChar」"
+            else -> "🔄 Follow the guide shape a little closer"
         }
 
-        return TraceEvaluation(accuracy, passed, feedback)
+        return TraceEvaluation(passed, feedback)
     }
 }
 
 // =========================================================================
-// MAIN WRITING & KANA MASTERY SCREEN
+// SILENT 0.5% STEP MASTERY STORAGE (1 unit = 0.5%, 200 units = full bar)
+// =========================================================================
+private const val MAX_MASTERY_UNITS = 200 // 200 * 0.5% = 100% full bar
+
+private fun loadKanaMasteryMap(prefs: android.content.SharedPreferences): Map<String, Int> {
+    val raw = prefs.getStringSet("kana_mastery_half_pct_v1", emptySet()).orEmpty()
+    val out = mutableMapOf<String, Int>()
+    for (entry in raw) {
+        val parts = entry.split(":")
+        if (parts.size == 2) {
+            parts[1].toIntOrNull()?.let { out[parts[0]] = it.coerceIn(0, MAX_MASTERY_UNITS) }
+        }
+    }
+    return out
+}
+
+private fun saveKanaMasteryMap(prefs: android.content.SharedPreferences, map: Map<String, Int>) {
+    val set = map.entries.map { "${it.key}:${it.value}" }.toSet()
+    prefs.edit().putStringSet("kana_mastery_half_pct_v1", set).apply()
+}
+
+/** Returns progress fraction `0f..1f` where each trace or quiz adds `0.005f` (0.5%). */
+private fun charProgressFraction(charStr: String, masteryMap: Map<String, Int>): Float =
+    ((masteryMap[charStr] ?: 0).coerceIn(0, MAX_MASTERY_UNITS) / MAX_MASTERY_UNITS.toFloat())
+
+// =========================================================================
+// MAIN KANA & KANJI SCREEN (MATCHING SCREENSHOT LAYOUT)
 // =========================================================================
 @Composable
 fun WritingLabScreen(
@@ -210,52 +232,87 @@ fun WritingLabScreen(
     onAwardXp: (Int) -> Unit
 ) {
     val context = LocalContext.current
-    val prefs = remember { context.getSharedPreferences("nihongo_master", Context.MODE_PRIVATE) }
+    val prefs = remember { context.getSharedPreferences("nihongo_master", android.content.Context.MODE_PRIVATE) }
     val appLanguage = LocalAppLanguage.current
 
-    // Persistent Per-Character Mastery Map: char -> 0..4 (0%, 25%, 50%, 75%, 100%)
     var kanaMastery by remember {
         mutableStateOf(loadKanaMasteryMap(prefs))
     }
 
-    fun incrementKanaMastery(charStr: String) {
-        val current = kanaMastery[charStr] ?: 0
-        val next = (current + 1).coerceAtMost(4)
-        val updated = kanaMastery.toMutableMap().apply { put(charStr, next) }
+    fun incrementKanaMasteryByHalfPercent(charStr: String) {
+        val currentUnits = kanaMastery[charStr] ?: 0
+        val nextUnits = (currentUnits + 1).coerceAtMost(MAX_MASTERY_UNITS)
+        val updated = kanaMastery.toMutableMap().apply { put(charStr, nextUnits) }
         kanaMastery = updated
         saveKanaMasteryMap(prefs, updated)
     }
 
-    var subTab by remember { mutableIntStateOf(0) } // 0: Kana Dojo & Row Trace, 1: Row & Overall Practice, 2: 103 N5 Kanji
+    var topTab by remember { mutableIntStateOf(0) } // 0: HIRAGANA, 1: KATAKANA, 2: KANJI
+    var activePracticeRow by remember { mutableStateOf<KanaRowFilter?>(null) }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 16.dp, vertical = 10.dp)
-    ) {
-        DuoSegmentedTabs(
-            tabs = listOf("あア Kana & Trace", "🎯 Row & Overall Quiz", "✍️ 103 Kanji"),
-            selectedIndex = subTab,
-            onSelect = { subTab = it },
-            activeColor = DuoColors.FeatherGreen,
-            activeLipColor = DuoColors.FeatherGreenDark
+    // If user tapped "LEARN THE CHARACTERS", open the Interactive Row/Overall Quiz & Trace Session
+    activePracticeRow?.let { initialRow ->
+        val scriptType = if (topTab == 1) KanaType.KATAKANA else KanaType.HIRAGANA
+        KanaInteractivePracticeOverlay(
+            initialScript = scriptType,
+            initialRow = initialRow,
+            kanaMastery = kanaMastery,
+            onIncrementMastery = ::incrementKanaMasteryByHalfPercent,
+            onSpeak = onSpeak,
+            onAwardXp = onAwardXp,
+            onClose = { activePracticeRow = null }
         )
+        return
+    }
 
-        Spacer(Modifier.height(12.dp))
+    Column(modifier = Modifier.fillMaxSize()) {
+        // Top Underline Tab Bar: HIRAGANA | KATAKANA | KANJI (Matches Screenshot!)
+        val tabTitles = listOf("HIRAGANA", "KATAKANA", "KANJI")
+        TabRow(
+            selectedTabIndex = topTab,
+            containerColor = MaterialTheme.colorScheme.background,
+            contentColor = DuoColors.MacawBlue,
+            indicator = { tabPositions ->
+                if (topTab < tabPositions.size) {
+                    TabRowDefaults.SecondaryIndicator(
+                        modifier = Modifier.tabIndicatorOffset(tabPositions[topTab]),
+                        height = 3.dp,
+                        color = DuoColors.MacawBlue
+                    )
+                }
+            }
+        ) {
+            tabTitles.forEachIndexed { idx, title ->
+                val selected = topTab == idx
+                Tab(
+                    selected = selected,
+                    onClick = { topTab = idx },
+                    text = {
+                        Text(
+                            text = title,
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 13.sp,
+                            color = if (selected) DuoColors.MacawBlue else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                )
+            }
+        }
 
-        when (subTab) {
-            0 -> KanaMasterDojoView(
-                appLanguage = appLanguage,
+        when (topTab) {
+            0 -> CleanFiveColumnKanaGridScreen(
+                scriptType = KanaType.HIRAGANA,
                 kanaMastery = kanaMastery,
-                onIncrementMastery = ::incrementKanaMastery,
-                onStartRowQuiz = { subTab = 1 },
+                onIncrementMastery = ::incrementKanaMasteryByHalfPercent,
+                onStartPractice = { chosenRow -> activePracticeRow = chosenRow },
                 onSpeak = onSpeak,
                 onAwardXp = onAwardXp
             )
-            1 -> KanaRowAndOverallPracticeView(
-                appLanguage = appLanguage,
+            1 -> CleanFiveColumnKanaGridScreen(
+                scriptType = KanaType.KATAKANA,
                 kanaMastery = kanaMastery,
-                onIncrementMastery = ::incrementKanaMastery,
+                onIncrementMastery = ::incrementKanaMasteryByHalfPercent,
+                onStartPractice = { chosenRow -> activePracticeRow = chosenRow },
                 onSpeak = onSpeak,
                 onAwardXp = onAwardXp
             )
@@ -268,272 +325,167 @@ fun WritingLabScreen(
     }
 }
 
-private fun loadKanaMasteryMap(prefs: android.content.SharedPreferences): Map<String, Int> {
-    val raw = prefs.getStringSet("kana_mastery_v1", emptySet()).orEmpty()
-    val out = mutableMapOf<String, Int>()
-    for (entry in raw) {
-        val parts = entry.split(":")
-        if (parts.size == 2) {
-            parts[1].toIntOrNull()?.let { out[parts[0]] = it }
-        }
-    }
-    return out
-}
-
-private fun saveKanaMasteryMap(prefs: android.content.SharedPreferences, map: Map<String, Int>) {
-    val set = map.entries.map { "${it.key}:${it.value}" }.toSet()
-    prefs.edit().putStringSet("kana_mastery_v1", set).apply()
-}
-
-private fun rowMasteryPercent(chars: List<KanaChar>, masteryMap: Map<String, Int>): Int {
-    if (chars.isEmpty()) return 0
-    val totalPoints = chars.sumOf { (masteryMap[it.char] ?: 0) * 25 }
-    return (totalPoints / chars.size).coerceIn(0, 100)
-}
-
 // =========================================================================
-// TAB 0: KANA DOJO (ROW-BY-ROW TRACE, MASTERY BARS & CONTINUOUS ROW TRACING)
+// 5-COLUMN KANA GRID WITH SILENT GOLDEN PROGRESS BARS (MATCHING SCREENSHOT)
 // =========================================================================
 @Composable
-private fun KanaMasterDojoView(
-    appLanguage: AppLanguage,
+private fun CleanFiveColumnKanaGridScreen(
+    scriptType: KanaType,
     kanaMastery: Map<String, Int>,
     onIncrementMastery: (String) -> Unit,
-    onStartRowQuiz: () -> Unit,
+    onStartPractice: (KanaRowFilter) -> Unit,
     onSpeak: (String, ListeningSpeed) -> Unit,
     onAwardXp: (Int) -> Unit
 ) {
-    var selectedType by remember { mutableStateOf(KanaType.HIRAGANA) }
-    var rowFilter by remember { mutableStateOf(KanaRowFilter.VOWELS) }
+    var selectedRowFilter by remember { mutableStateOf(KanaRowFilter.ALL_OVERALL) }
     var tracingQueue by remember { mutableStateOf<List<KanaChar>>(emptyList()) }
     var tracingIndex by remember { mutableIntStateOf(0) }
 
-    val filteredKana = remember(selectedType, rowFilter) {
-        rowFilter.filterKana(selectedType)
+    val gojuonRows = remember(scriptType) {
+        buildGojuonFiveColumnRows(scriptType, DataRepository.allKana)
     }
-    val currentRowMastery = remember(filteredKana, kanaMastery) {
-        rowMasteryPercent(filteredKana, kanaMastery)
+    val dakutenRows = remember(scriptType) {
+        DataRepository.allKana.filter { it.type == scriptType && it.group == KanaGroup.VOICED }.chunked(5)
     }
-    val overallScriptKana = remember(selectedType) {
-        DataRepository.allKana.filter { it.type == selectedType }
-    }
-    val overallScriptMastery = remember(overallScriptKana, kanaMastery) {
-        rowMasteryPercent(overallScriptKana, kanaMastery)
+    val comboRows = remember(scriptType) {
+        DataRepository.allKana.filter { it.type == scriptType && it.group == KanaGroup.COMBO }.chunked(3)
     }
 
     LazyColumn(
-        modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 14.dp),
+        contentPadding = PaddingValues(vertical = 14.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        // 1. Script Toggle (Hiragana vs Katakana) with Overall Script Mastery %
+        // 1. "LEARN THE CHARACTERS" Button (Matches Screenshot!)
         item {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Duo3DButton(
-                    text = "ひらがな Hiragana ($overallScriptMastery%)",
-                    onClick = { selectedType = KanaType.HIRAGANA },
-                    topColor = if (selectedType == KanaType.HIRAGANA) DuoColors.MacawBlue else MaterialTheme.colorScheme.surfaceVariant,
-                    lipColor = if (selectedType == KanaType.HIRAGANA) DuoColors.MacawBlueDark else DuoColors.LightLip,
-                    textColor = if (selectedType == KanaType.HIRAGANA) Color.White else MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.weight(1f)
-                )
-                Duo3DButton(
-                    text = "カタカナ Katakana",
-                    onClick = { selectedType = KanaType.KATAKANA },
-                    topColor = if (selectedType == KanaType.KATAKANA) DuoColors.LilacPurple else MaterialTheme.colorScheme.surfaceVariant,
-                    lipColor = if (selectedType == KanaType.KATAKANA) DuoColors.LilacPurpleDark else DuoColors.LightLip,
-                    textColor = if (selectedType == KanaType.KATAKANA) Color.White else MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.weight(1f)
-                )
-            }
+            Duo3DButton(
+                text = if (selectedRowFilter == KanaRowFilter.ALL_OVERALL) "LEARN THE CHARACTERS"
+                else "PRACTICE ${selectedRowFilter.label.uppercase()}",
+                onClick = { onStartPractice(selectedRowFilter) },
+                topColor = DuoColors.MacawBlue,
+                lipColor = DuoColors.MacawBlueDark,
+                modifier = Modifier.fillMaxWidth()
+            )
         }
 
-        // 2. Specific Row Selector Chips (A-Row, K-Row, S-Row, T-Row... with Row Mastery %)
+        // 2. Row Filter Strip (Overall vs Specific Row: A, K, S, T, N, H, M, Y, R, W)
         item {
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.padding(vertical = 2.dp)
+            ) {
                 items(KanaRowFilter.entries) { filter ->
-                    val selected = rowFilter == filter
-                    val rowPct = rowMasteryPercent(filter.filterKana(selectedType), kanaMastery)
+                    val selected = selectedRowFilter == filter
                     FilterChip(
                         selected = selected,
-                        onClick = { rowFilter = filter },
+                        onClick = { selectedRowFilter = filter },
                         label = {
                             Text(
-                                text = "${filter.label} • $rowPct%",
+                                text = filter.label,
                                 fontWeight = FontWeight.ExtraBold,
                                 fontSize = 12.sp
                             )
-                        },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = DuoColors.FeatherGreenBg,
-                            selectedLabelColor = OnPastel
-                        )
+                        }
                     )
                 }
             }
         }
 
-        // 3. Row Mastery Header + "Trace Entire Row" & "Practice Row" Quick Actions
-        item {
-            Duo3DCard(
-                containerColor = MaterialTheme.colorScheme.surface,
-                borderColor = DuoColors.FeatherGreen
-            ) {
-                Column(modifier = Modifier.padding(14.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "${rowFilter.label} Mastery: $currentRowMastery%",
-                                fontWeight = FontWeight.ExtraBold,
-                                fontSize = 15.sp
-                            )
-                            Text(
-                                text = rowFilter.tip(appLanguage),
-                                fontSize = 12.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
+        // 3. 5-Column Kana Cards Grid (With Empty Slots for ya/yu/yo, wa/wo, n)
+        if (selectedRowFilter == KanaRowFilter.ALL_OVERALL) {
+            items(gojuonRows) { rowSlots ->
+                val nonNullRowChars = rowSlots.filterNotNull()
+                FiveColumnKanaRow(
+                    slots = rowSlots,
+                    kanaMastery = kanaMastery,
+                    onTapChar = { clicked ->
+                        onSpeak(clicked.char, ListeningSpeed.NATURAL)
+                        tracingQueue = nonNullRowChars
+                        tracingIndex = nonNullRowChars.indexOf(clicked).coerceAtLeast(0)
                     }
+                )
+            }
 
-                    Spacer(Modifier.height(8.dp))
-                    LinearProgressIndicator(
-                        progress = { (currentRowMastery / 100f).coerceIn(0.04f, 1f) },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(8.dp)
-                            .clip(CircleShape),
-                        color = DuoColors.FeatherGreen,
-                        trackColor = MaterialTheme.colorScheme.surfaceVariant
-                    )
+            item {
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = "DAKUTEN & HANDAKUTEN (゛゜)",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
 
-                    Spacer(Modifier.height(10.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Duo3DButton(
-                            text = "✍️ Trace Row (${filteredKana.size})",
+            items(dakutenRows) { rowChars ->
+                val paddedSlots: List<KanaChar?> = rowChars + List((5 - rowChars.size).coerceAtLeast(0)) { null }
+                FiveColumnKanaRow(
+                    slots = paddedSlots,
+                    kanaMastery = kanaMastery,
+                    onTapChar = { clicked ->
+                        onSpeak(clicked.char, ListeningSpeed.NATURAL)
+                        tracingQueue = rowChars
+                        tracingIndex = rowChars.indexOf(clicked).coerceAtLeast(0)
+                    }
+                )
+            }
+
+            item {
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = "YŌON COMBO SOUNDS (ゃ ゅ ょ)",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            items(comboRows) { rowChars ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    rowChars.forEach { k ->
+                        KanaProgressTile(
+                            kana = k,
+                            progressFraction = charProgressFraction(k.char, kanaMastery),
+                            modifier = Modifier.weight(1f),
                             onClick = {
-                                tracingQueue = filteredKana
-                                tracingIndex = 0
-                            },
-                            topColor = DuoColors.FeatherGreen,
-                            lipColor = DuoColors.FeatherGreenDark,
-                            modifier = Modifier.weight(1f)
-                        )
-                        Duo3DButton(
-                            text = "🎯 Quiz Row / All",
-                            onClick = onStartRowQuiz,
-                            topColor = DuoColors.MacawBlue,
-                            lipColor = DuoColors.MacawBlueDark,
-                            modifier = Modifier.weight(1f)
+                                onSpeak(k.char, ListeningSpeed.NATURAL)
+                                tracingQueue = rowChars
+                                tracingIndex = rowChars.indexOf(k).coerceAtLeast(0)
+                            }
                         )
                     }
                 }
             }
-        }
-
-        // 4. Kana Cards Grid with Per-Character Mastery Stars & 1-Tap Trace
-        val chunks = filteredKana.chunked(3)
-        items(chunks) { rowItems ->
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                rowItems.forEach { k ->
-                    val levelPts = (kanaMastery[k.char] ?: 0).coerceIn(0, 4)
-                    val pct = levelPts * 25
-                    val phoneticLabel = if (appLanguage == AppLanguage.HINDI) {
-                        val hi = HINDI_ROMAJI_MAP[k.romaji]
-                        if (hi != null) "${k.romaji} ($hi)" else k.romaji
-                    } else {
-                        k.romaji
+        } else {
+            // Specific Row Selected
+            val rowChars = selectedRowFilter.filterKana(scriptType)
+            val chunks = rowChars.chunked(5)
+            items(chunks) { chunk ->
+                val padded: List<KanaChar?> = chunk + List((5 - chunk.size).coerceAtLeast(0)) { null }
+                FiveColumnKanaRow(
+                    slots = padded,
+                    kanaMastery = kanaMastery,
+                    onTapChar = { clicked ->
+                        onSpeak(clicked.char, ListeningSpeed.NATURAL)
+                        tracingQueue = rowChars
+                        tracingIndex = rowChars.indexOf(clicked).coerceAtLeast(0)
                     }
-
-                    Duo3DCard(
-                        modifier = Modifier.weight(1f),
-                        borderColor = if (pct == 100) DuoColors.FeatherGreen else if (selectedType == KanaType.HIRAGANA) DuoColors.MacawBlue.copy(alpha = 0.55f) else DuoColors.LilacPurple.copy(alpha = 0.55f),
-                        onClick = { onSpeak(k.char, ListeningSpeed.NATURAL) }
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(10.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text("🔊", fontSize = 11.sp)
-                                Text(
-                                    text = "✍️ Trace",
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    color = DuoColors.FeatherGreenDark,
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(6.dp))
-                                        .background(DuoColors.FeatherGreenBg)
-                                        .clickable {
-                                            val startIdx = filteredKana.indexOf(k).coerceAtLeast(0)
-                                            tracingQueue = filteredKana
-                                            tracingIndex = startIdx
-                                        }
-                                        .padding(horizontal = 6.dp, vertical = 2.dp)
-                                )
-                            }
-
-                            Spacer(Modifier.height(4.dp))
-                            Text(
-                                text = k.char,
-                                fontSize = 36.sp,
-                                fontWeight = FontWeight.ExtraBold
-                            )
-                            Text(
-                                text = phoneticLabel,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = DuoColors.MacawBlueDark
-                            )
-
-                            Spacer(Modifier.height(6.dp))
-                            LinearProgressIndicator(
-                                progress = { (pct / 100f).coerceIn(0.08f, 1f) },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(5.dp)
-                                    .clip(CircleShape),
-                                color = if (pct == 100) DuoColors.FeatherGreen else DuoColors.BeeGold,
-                                trackColor = MaterialTheme.colorScheme.surfaceVariant
-                            )
-                            Spacer(Modifier.height(2.dp))
-                            Text(
-                                text = if (pct == 100) "★ Mastered" else "$pct% Mastery",
-                                fontSize = 9.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = if (pct == 100) DuoColors.FeatherGreenDark else MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                }
-                repeat(3 - rowItems.size) {
-                    Spacer(modifier = Modifier.weight(1f))
-                }
+                )
             }
         }
     }
 
-    // Continuous Row Tracing Dialog with Live Bitmap Accuracy Check!
+    // Tapping any character card opens the Trace Modal for that row
     if (tracingQueue.isNotEmpty()) {
         val currentKana = tracingQueue[tracingIndex.coerceIn(0, tracingQueue.lastIndex)]
-        val currentMasteryPct = ((kanaMastery[currentKana.char] ?: 0) * 25).coerceIn(0, 100)
+        val progress = charProgressFraction(currentKana.char, kanaMastery)
         CharacterTraceDialog(
-            title = "Trace ${if (currentKana.type == KanaType.HIRAGANA) "Hiragana" else "Katakana"} 「${currentKana.char}」 (${tracingIndex + 1}/${tracingQueue.size})",
-            subtitle = "Sound: ${currentKana.romaji}  •  Current Mastery: $currentMasteryPct%",
+            title = "Trace 「${currentKana.char}」 (${currentKana.romaji})",
+            progressFraction = progress,
             targetChar = currentKana.char,
             hasNextInQueue = tracingIndex + 1 < tracingQueue.size,
             onSpeak = { onSpeak(currentKana.char, ListeningSpeed.NATURAL) },
@@ -553,31 +505,160 @@ private fun KanaMasterDojoView(
     }
 }
 
+@Composable
+private fun FiveColumnKanaRow(
+    slots: List<KanaChar?>,
+    kanaMastery: Map<String, Int>,
+    onTapChar: (KanaChar) -> Unit
+) {
+    val isDark = LocalDarkTheme.current
+    val emptySlotColor = if (isDark) Color(0xFF1A2730) else Color(0xFFE8EEF3)
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        slots.forEach { kana ->
+            if (kana == null) {
+                // Blank recessed placeholder block (like in や _ ゆ _ よ and わ _ _ _ を)
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(86.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(emptySlotColor)
+                )
+            } else {
+                KanaProgressTile(
+                    kana = kana,
+                    progressFraction = charProgressFraction(kana.char, kanaMastery),
+                    modifier = Modifier.weight(1f),
+                    onClick = { onTapChar(kana) }
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Individual Kana Tile matching the screenshot:
+ * - Character on top
+ * - Romaji below
+ * - Golden progress bar at the bottom (NO percentage numbers!)
+ * - Golden border & golden text when progress is high/mastered!
+ */
+@Composable
+private fun KanaProgressTile(
+    kana: KanaChar,
+    progressFraction: Float,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    val isDark = LocalDarkTheme.current
+    val isHighlightedGold = progressFraction >= 0.5f
+    val goldColor = Color(0xFFFFC800)
+    val goldLip = Color(0xFFD9A600)
+
+    val borderCol = when {
+        isHighlightedGold -> goldColor
+        isDark -> DuoColors.DarkBorder
+        else -> DuoColors.LightBorder
+    }
+    val lipCol = when {
+        isHighlightedGold -> goldLip
+        isDark -> DuoColors.DarkLip
+        else -> DuoColors.LightLip
+    }
+    val cardBg = if (isDark) DuoColors.DarkCard else Color.White
+    val charColor = when {
+        isHighlightedGold -> goldColor
+        isDark -> Color.White
+        else -> Color(0xFF0F172A)
+    }
+    val romajiColor = when {
+        isHighlightedGold -> goldColor.copy(alpha = 0.85f)
+        else -> MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    val trackColor = if (isDark) Color(0xFF263540) else Color(0xFFE2E8F0)
+
+    val shape = RoundedCornerShape(14.dp)
+
+    Box(
+        modifier = modifier
+            .height(86.dp)
+            .clip(shape)
+            .background(lipCol)
+            .clickable { onClick() }
+            .padding(bottom = 3.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .clip(shape)
+                .background(cardBg)
+                .border(1.8.dp, borderCol, shape)
+                .padding(horizontal = 8.dp, vertical = 8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(
+                text = kana.char,
+                fontSize = 24.sp,
+                fontWeight = FontWeight.ExtraBold,
+                color = charColor
+            )
+            Text(
+                text = kana.romaji,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = romajiColor
+            )
+
+            // Silent Golden Progress Bar at the bottom of the card (No % numbers!)
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(6.dp)
+                    .clip(CircleShape)
+                    .background(trackColor)
+            ) {
+                if (progressFraction > 0f) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .fillMaxWidth(progressFraction.coerceIn(0.12f, 1f))
+                            .clip(CircleShape)
+                            .background(goldColor)
+                    )
+                }
+            }
+        }
+    }
+}
+
 // =========================================================================
-// TAB 1: SPECIFIC ROW PRACTICE vs OVERALL PRACTICE (BOOSTS MASTERY EVERY TIME!)
+// INTERACTIVE KANA PRACTICE OVERLAY (OVERALL OR SPECIFIC ROW: QUIZ + TRACE)
 // =========================================================================
 @Composable
-private fun KanaRowAndOverallPracticeView(
-    appLanguage: AppLanguage,
+private fun KanaInteractivePracticeOverlay(
+    initialScript: KanaType,
+    initialRow: KanaRowFilter,
     kanaMastery: Map<String, Int>,
     onIncrementMastery: (String) -> Unit,
     onSpeak: (String, ListeningSpeed) -> Unit,
-    onAwardXp: (Int) -> Unit
+    onAwardXp: (Int) -> Unit,
+    onClose: () -> Unit
 ) {
-    // Mode 0 = Specific Row Practice (A-Row, K-Row, S-Row...), Mode 1 = Overall Practice (Smart Weakest-First!)
-    var isOverallMode by remember { mutableStateOf(false) }
-    var selectedType by remember { mutableStateOf(KanaType.HIRAGANA) }
-    var selectedRow by remember { mutableStateOf(KanaRowFilter.VOWELS) }
+    var selectedType by remember { mutableStateOf(initialScript) }
+    var selectedRow by remember { mutableStateOf(initialRow) }
     var round by remember { mutableIntStateOf(0) }
-    var comboStreak by remember { mutableIntStateOf(0) }
-    var selectedIdx by remember(round, isOverallMode, selectedRow, selectedType) { mutableStateOf<Int?>(null) }
+    var selectedIdx by remember(round, selectedRow, selectedType) { mutableStateOf<Int?>(null) }
+    var showTraceModal by remember { mutableStateOf(false) }
 
-    val activePool = remember(isOverallMode, selectedRow, selectedType, round) {
-        if (isOverallMode) {
-            // Overall Practice: prioritizes characters with lowest mastery so weak characters improve fast!
+    val activePool = remember(selectedRow, selectedType, round) {
+        if (selectedRow == KanaRowFilter.ALL_OVERALL) {
             val allForScript = DataRepository.allKana.filter { it.type == selectedType }
-            val sortedByWeakest = allForScript.shuffled().sortedBy { kanaMastery[it.char] ?: 0 }
-            sortedByWeakest.take(15).ifEmpty { DataRepository.allKana }
+            allForScript.shuffled().sortedBy { kanaMastery[it.char] ?: 0 }.take(15).ifEmpty { DataRepository.allKana }
         } else {
             selectedRow.filterKana(selectedType).ifEmpty { DataRepository.allKana }
         }
@@ -585,7 +666,6 @@ private fun KanaRowAndOverallPracticeView(
 
     val target = remember(activePool, round) { activePool[round % activePool.size] }
     val options = remember(activePool, target, round) {
-        // In Specific Row mode, include distractors from the SAME row so you truly master the row!
         val sameRowWrong = activePool.map { it.romaji }.distinct().filter { it != target.romaji }.shuffled().take(2)
         val extraWrong = DataRepository.allKana.map { it.romaji }.distinct()
             .filter { it != target.romaji && it !in sameRowWrong }
@@ -594,237 +674,190 @@ private fun KanaRowAndOverallPracticeView(
         (sameRowWrong + extraWrong + target.romaji).shuffled()
     }
     val correctIndex = options.indexOf(target.romaji)
-    val targetMasteryPct = ((kanaMastery[target.char] ?: 0) * 25).coerceIn(0, 100)
+    val targetProgress = charProgressFraction(target.char, kanaMastery)
 
     LaunchedEffect(target) {
         onSpeak(target.char, ListeningSpeed.NATURAL)
     }
 
-    LazyColumn(
-        modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        // 1. Mode Selector: Specific Row vs Overall Practice
-        item {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Duo3DButton(
-                    text = "🎯 Specific Row Practice",
-                    onClick = { isOverallMode = false; round++ },
-                    topColor = if (!isOverallMode) DuoColors.MacawBlue else MaterialTheme.colorScheme.surfaceVariant,
-                    lipColor = if (!isOverallMode) DuoColors.MacawBlueDark else DuoColors.LightLip,
-                    textColor = if (!isOverallMode) Color.White else MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.weight(1f)
-                )
-                Duo3DButton(
-                    text = "🔥 Overall Practice (All)",
-                    onClick = { isOverallMode = true; round++ },
-                    topColor = if (isOverallMode) DuoColors.FoxOrange else MaterialTheme.colorScheme.surfaceVariant,
-                    lipColor = if (isOverallMode) DuoColors.FoxOrangeDark else DuoColors.LightLip,
-                    textColor = if (isOverallMode) Color.White else MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.weight(1f)
-                )
-            }
-        }
-
-        // 2. Script Toggle + Row Filter (if in Specific Row mode)
-        item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                FilterChip(
-                    selected = selectedType == KanaType.HIRAGANA,
-                    onClick = { selectedType = KanaType.HIRAGANA; round++ },
-                    label = { Text("Hiragana (あ)", fontWeight = FontWeight.ExtraBold, fontSize = 12.sp) }
-                )
-                FilterChip(
-                    selected = selectedType == KanaType.KATAKANA,
-                    onClick = { selectedType = KanaType.KATAKANA; round++ },
-                    label = { Text("Katakana (ア)", fontWeight = FontWeight.ExtraBold, fontSize = 12.sp) }
-                )
-                Spacer(Modifier.weight(1f))
-                Text(
-                    text = "🔥 Streak: $comboStreak",
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = DuoColors.FoxOrangeDark
-                )
-            }
-
-            if (!isOverallMode) {
-                Spacer(Modifier.height(6.dp))
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(KanaRowFilter.entries) { f ->
-                        val rowPct = rowMasteryPercent(f.filterKana(selectedType), kanaMastery)
-                        FilterChip(
-                            selected = selectedRow == f,
-                            onClick = { selectedRow = f; round++ },
-                            label = { Text("${f.label} • $rowPct%", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold) }
+    Scaffold(
+        topBar = {
+            Surface(color = MaterialTheme.colorScheme.surface, tonalElevation = 2.dp) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 10.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        IconButton(onClick = onClose, modifier = Modifier.size(32.dp)) {
+                            Icon(Icons.Default.Close, contentDescription = "Close")
+                        }
+                        Text(
+                            text = selectedRow.label,
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 15.sp
                         )
+                        OutlinedButton(onClick = { showTraceModal = true }) {
+                            Text("✍️ Trace", fontSize = 12.sp, fontWeight = FontWeight.ExtraBold)
+                        }
+                    }
+
+                    // Switch between Overall and Specific Rows anytime
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        items(KanaRowFilter.entries) { f ->
+                            FilterChip(
+                                selected = selectedRow == f,
+                                onClick = { selectedRow = f; round++ },
+                                label = { Text(f.label, fontSize = 11.sp, fontWeight = FontWeight.Bold) }
+                            )
+                        }
                     }
                 }
             }
         }
+    ) { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background)
+                .padding(padding)
+                .padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Text(
+                text = "Select the correct sound",
+                fontSize = 22.sp,
+                fontWeight = FontWeight.ExtraBold
+            )
 
-        // 3. Target Kana Prompt Card with Character Mastery Bar
-        item {
+            // Big Character Card with Silent Golden Progress Bar
             Duo3DCard(
-                borderColor = DuoColors.MacawBlue,
-                lipColor = DuoColors.MacawBlueDark,
+                borderColor = Color(0xFFFFC800),
+                lipColor = Color(0xFFD9A600),
                 onClick = { onSpeak(target.char, ListeningSpeed.NATURAL) }
             ) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(20.dp),
+                        .padding(24.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                    Text(
+                        text = target.char,
+                        fontSize = 76.sp,
+                        fontWeight = FontWeight.ExtraBold
+                    )
+                    Spacer(Modifier.height(10.dp))
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth(0.55f)
+                            .height(8.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
                     ) {
-                        Text(
-                            text = if (isOverallMode) "OVERALL SMART PRACTICE" else selectedRow.label.uppercase(),
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = DuoColors.MacawBlueDark
-                        )
-                        Surface(
-                            color = if (targetMasteryPct == 100) DuoColors.FeatherGreenBg else DuoColors.BeeGoldBg,
-                            shape = RoundedCornerShape(8.dp)
-                        ) {
-                            Text(
-                                text = "Mastery: $targetMasteryPct%",
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = OnPastel
+                        if (targetProgress > 0f) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxHeight()
+                                    .fillMaxWidth(targetProgress.coerceIn(0.12f, 1f))
+                                    .clip(CircleShape)
+                                    .background(Color(0xFFFFC800))
                             )
                         }
                     }
-
-                    Spacer(Modifier.height(8.dp))
-                    Text(
-                        text = target.char,
-                        fontSize = 68.sp,
-                        fontWeight = FontWeight.ExtraBold
-                    )
-                    Text(
-                        text = "🔊 Tap to hear pronunciation",
-                        fontSize = 12.sp,
-                        color = DuoColors.MacawBlueDark,
-                        fontWeight = FontWeight.Bold
-                    )
                 }
             }
-        }
 
-        // 4. 2x2 Answer Choices
-        item {
+            // 2x2 Sound Choices
             val rows = options.indices.chunked(2)
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                rows.forEach { pair ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        pair.forEach { idx ->
-                            val romaji = options[idx]
-                            val hi = if (appLanguage == AppLanguage.HINDI) HINDI_ROMAJI_MAP[romaji] else null
-                            val isSelected = selectedIdx == idx
-                            val isCorrect = idx == correctIndex
+            rows.forEach { pair ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    pair.forEach { idx ->
+                        val romaji = options[idx]
+                        val isSelected = selectedIdx == idx
+                        val isCorrect = idx == correctIndex
 
-                            val bg = when {
-                                selectedIdx == null -> MaterialTheme.colorScheme.surface
-                                isCorrect -> DuoColors.FeatherGreenBg
-                                isSelected -> DuoColors.CardinalRedBg
-                                else -> MaterialTheme.colorScheme.surface
-                            }
-                            val border = when {
-                                selectedIdx == null -> DuoColors.MacawBlue.copy(alpha = 0.5f)
-                                isCorrect -> DuoColors.FeatherGreen
-                                isSelected -> DuoColors.CardinalRed
-                                else -> DuoColors.LightBorder
-                            }
+                        val bg = when {
+                            selectedIdx == null -> MaterialTheme.colorScheme.surface
+                            isCorrect -> DuoColors.FeatherGreenBg
+                            isSelected -> DuoColors.CardinalRedBg
+                            else -> MaterialTheme.colorScheme.surface
+                        }
+                        val border = when {
+                            selectedIdx == null -> if (LocalDarkTheme.current) DuoColors.DarkBorder else DuoColors.LightBorder
+                            isCorrect -> DuoColors.FeatherGreen
+                            isSelected -> DuoColors.CardinalRed
+                            else -> DuoColors.LightBorder
+                        }
 
-                            Duo3DCard(
-                                modifier = Modifier.weight(1f),
-                                containerColor = bg,
-                                borderColor = border,
-                                lipColor = border,
-                                onClick = {
-                                    if (selectedIdx == null) {
-                                        selectedIdx = idx
-                                        if (isCorrect) {
-                                            comboStreak++
-                                            onIncrementMastery(target.char)
-                                            onAwardXp(10)
-                                        } else {
-                                            comboStreak = 0
-                                        }
-                                        onSpeak(target.char, ListeningSpeed.NATURAL)
+                        Duo3DCard(
+                            modifier = Modifier.weight(1f),
+                            containerColor = bg,
+                            borderColor = border,
+                            lipColor = border,
+                            onClick = {
+                                if (selectedIdx == null) {
+                                    selectedIdx = idx
+                                    if (isCorrect) {
+                                        onIncrementMastery(target.char)
+                                        onAwardXp(10)
                                     }
+                                    onSpeak(target.char, ListeningSpeed.NATURAL)
                                 }
+                            }
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 22.dp),
+                                contentAlignment = Alignment.Center
                             ) {
-                                Column(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(vertical = 18.dp, horizontal = 10.dp),
-                                    horizontalAlignment = Alignment.CenterHorizontally
-                                ) {
-                                    Text(
-                                        text = romaji,
-                                        fontSize = 22.sp,
-                                        fontWeight = FontWeight.ExtraBold,
-                                        color = if (selectedIdx != null && (isCorrect || isSelected)) OnPastel else MaterialTheme.colorScheme.onSurface
-                                    )
-                                    if (hi != null) {
-                                        Text(
-                                            text = hi,
-                                            fontSize = 12.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = DuoColors.FeatherGreenDark
-                                        )
-                                    }
-                                }
+                                Text(
+                                    text = romaji,
+                                    fontSize = 22.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = if (selectedIdx != null && (isCorrect || isSelected)) OnPastel else MaterialTheme.colorScheme.onSurface
+                                )
                             }
                         }
                     }
                 }
             }
-        }
 
-        if (selectedIdx != null) {
-            item {
+            Spacer(Modifier.weight(1f))
+
+            if (selectedIdx != null) {
                 val won = selectedIdx == correctIndex
-                val newPct = ((kanaMastery[target.char] ?: 0) * 25).coerceIn(0, 100)
-                Duo3DCard(
-                    containerColor = if (won) DuoColors.FeatherGreenBg else DuoColors.CardinalRedBg,
-                    borderColor = if (won) DuoColors.FeatherGreen else DuoColors.CardinalRed,
-                    lipColor = if (won) DuoColors.FeatherGreenDark else DuoColors.CardinalRedDark
-                ) {
-                    Column(modifier = Modifier.padding(14.dp)) {
-                        Text(
-                            text = if (won) "✅ Correct! 「${target.char}」 Mastery is now $newPct% (+10 XP)"
-                            else "❌ Correct sound: 「${target.char}」 = ${target.romaji}",
-                            fontWeight = FontWeight.ExtraBold,
-                            fontSize = 14.sp,
-                            color = OnPastel
-                        )
-                        Spacer(Modifier.height(10.dp))
-                        Duo3DButton(
-                            text = "NEXT CHARACTER →",
-                            onClick = { round++ },
-                            topColor = if (won) DuoColors.FeatherGreen else DuoColors.CardinalRed,
-                            lipColor = if (won) DuoColors.FeatherGreenDark else DuoColors.CardinalRedDark,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
-                }
+                DuoBottomResultBanner(
+                    isCorrect = won,
+                    correctAnswerText = "${target.char} = ${target.romaji}",
+                    onContinue = { round++ }
+                )
             }
         }
+    }
+
+    if (showTraceModal) {
+        CharacterTraceDialog(
+            title = "Trace 「${target.char}」 (${target.romaji})",
+            progressFraction = targetProgress,
+            targetChar = target.char,
+            hasNextInQueue = false,
+            onSpeak = { onSpeak(target.char, ListeningSpeed.NATURAL) },
+            onDismiss = { showTraceModal = false },
+            onPassedTrace = {
+                onIncrementMastery(target.char)
+                onAwardXp(15)
+            }
+        )
     }
 }
 
@@ -844,7 +877,9 @@ private fun KanjiCanvasLabView(
     val currentKanji = selectedKanji ?: kanjiPool.firstOrNull() ?: return
 
     LazyColumn(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         item {
@@ -919,7 +954,7 @@ private fun KanjiCanvasLabView(
 
                     Spacer(Modifier.height(12.dp))
                     Duo3DButton(
-                        text = "✍️ Trace 「${currentKanji.kanji}」 with Accuracy Check (+20 XP)",
+                        text = "✍️ Trace 「${currentKanji.kanji}」",
                         onClick = { showCanvas = true },
                         topColor = DuoColors.FeatherGreen,
                         lipColor = DuoColors.FeatherGreenDark,
@@ -976,7 +1011,7 @@ private fun KanjiCanvasLabView(
         val idxInPool = kanjiPool.indexOf(currentKanji).coerceAtLeast(0)
         CharacterTraceDialog(
             title = "Trace Kanji 「${currentKanji.kanji}」 (${currentKanji.meaning(appLanguage)})",
-            subtitle = "${currentKanji.strokeCount} Strokes • ${currentKanji.sampleWords.firstOrNull().orEmpty()}",
+            progressFraction = 0.5f,
             targetChar = currentKanji.kanji,
             hasNextInQueue = idxInPool + 1 < kanjiPool.size,
             onSpeak = { onSpeak(currentKanji.kanji, ListeningSpeed.NATURAL) },
@@ -1011,12 +1046,12 @@ private fun KanjiInfoPill(title: String, value: String, bg: Color, modifier: Mod
 }
 
 // =========================================================================
-// SMART CHARACTER TRACE DIALOG WITH LIVE BITMAP ACCURACY CHECK & NEXT IN ROW
+// CHARACTER TRACE DIALOG WITH SILENT GOLDEN PROGRESS BAR (NO % TEXT)
 // =========================================================================
 @Composable
 fun CharacterTraceDialog(
     title: String,
-    subtitle: String,
+    progressFraction: Float,
     targetChar: String,
     hasNextInQueue: Boolean = false,
     onSpeak: () -> Unit,
@@ -1052,7 +1087,7 @@ fun CharacterTraceDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
-            Column {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -1063,7 +1098,23 @@ fun CharacterTraceDialog(
                         Icon(Icons.Default.VolumeUp, contentDescription = "Audio", tint = DuoColors.MacawBlueDark)
                     }
                 }
-                Text(subtitle, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.Bold)
+                // Silent Golden Mastery Bar (No % text!)
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(7.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                ) {
+                    val displayedFraction = (progressFraction + if (masteryAwardedForThisChar) 0.05f else 0f).coerceIn(0.08f, 1f)
+                    Box(
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .fillMaxWidth(displayedFraction)
+                            .clip(CircleShape)
+                            .background(Color(0xFFFFC800))
+                    )
+                }
             }
         },
         text = {
@@ -1142,7 +1193,6 @@ fun CharacterTraceDialog(
 
                 Spacer(Modifier.height(10.dp))
 
-                // Live Accuracy Feedback Banner
                 val eval = evaluation
                 Surface(
                     color = when (eval?.isPassed) {
@@ -1154,7 +1204,7 @@ fun CharacterTraceDialog(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(
-                        text = eval?.feedbackText ?: "✍️ Trace over 「$targetChar」 with your finger to check accuracy",
+                        text = eval?.feedbackText ?: "✍️ Trace over 「$targetChar」 with your finger",
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
                         fontSize = 12.sp,
                         fontWeight = FontWeight.ExtraBold,
@@ -1194,7 +1244,7 @@ fun CharacterTraceDialog(
             ) {
                 if (hasNextInQueue) {
                     Duo3DButton(
-                        text = if (passed) "NEXT IN ROW →" else "TRACE TO UNLOCK NEXT",
+                        text = if (passed) "NEXT IN ROW →" else "TRACE TO CONTINUE",
                         enabled = passed,
                         onClick = onNextChar,
                         topColor = DuoColors.FeatherGreen,
@@ -1203,7 +1253,7 @@ fun CharacterTraceDialog(
                     )
                 } else {
                     Duo3DButton(
-                        text = if (passed) "FINISH (+XP)" else "TRACE CHARACTER FIRST",
+                        text = if (passed) "DONE" else "TRACE FIRST",
                         enabled = passed,
                         onClick = onDismiss,
                         topColor = DuoColors.FeatherGreen,
