@@ -38,6 +38,7 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.nihongo.master.*
+import kotlin.math.min
 import kotlin.math.roundToInt
 
 // =========================================================================
@@ -47,7 +48,7 @@ private enum class KanaRowFilter(
     val label: String,
     val romajiSet: Set<String>?
 ) {
-    ALL_OVERALL("All Characters (Overall)", null),
+    ALL_OVERALL("All 46 Basic (Overall)", null),
     VOWELS("A-Row (あ い う え お)", setOf("a", "i", "u", "e", "o")),
     K_ROW("K-Row (か き く け こ)", setOf("ka", "ki", "ku", "ke", "ko")),
     S_ROW("S-Row (さ し す せ そ)", setOf("sa", "shi", "su", "se", "so")),
@@ -73,10 +74,6 @@ private enum class KanaRowFilter(
     }
 }
 
-/**
- * Builds the authentic 5-column Gojūon grid rows with `null` for empty slots
- * (`や _ ゆ _ よ`, `わ _ _ _ を`, `ん _ _ _ _`) matching the screenshot!
- */
 private fun buildGojuonFiveColumnRows(type: KanaType, basicKana: List<KanaChar>): List<List<KanaChar?>> {
     val byRomaji = basicKana.filter { it.type == type && it.group == KanaGroup.BASIC }.associateBy { it.romaji }
     val rowTemplates = listOf(
@@ -96,15 +93,17 @@ private fun buildGojuonFiveColumnRows(type: KanaType, basicKana: List<KanaChar>)
 }
 
 // =========================================================================
-// FORGIVING BITMAP OVERLAP TRACING EVALUATOR (NO PERCENTAGE TEXT SHOWN)
+// STRICT 3-STAGE CHARACTER TRACE ACCURACY VERIFIER
+// Rejects 'X', random lines, incomplete strokes, and out-of-bounds scribbles!
 // =========================================================================
 private data class TraceEvaluation(
+    val accuracyPercent: Int,
     val isPassed: Boolean,
     val feedbackText: String
 )
 
 private object TraceAccuracyEvaluator {
-    private const val GRID_SIZE = 120
+    private const val GRID_SIZE = 128
 
     fun evaluate(
         targetChar: String,
@@ -113,97 +112,173 @@ private object TraceAccuracyEvaluator {
         canvasHeightPx: Float
     ): TraceEvaluation {
         if (strokes.isEmpty() || canvasWidthPx <= 10f || canvasHeightPx <= 10f) {
-            return TraceEvaluation(false, "Trace the character strokes on the canvas.")
+            return TraceEvaluation(0, false, "✍️ Trace over 「$targetChar」 following the guide.")
         }
 
         val scaleX = GRID_SIZE / canvasWidthPx
         val scaleY = GRID_SIZE / canvasHeightPx
 
-        val refBitmap = Bitmap.createBitmap(GRID_SIZE, GRID_SIZE, Bitmap.Config.ARGB_8888)
-        val refCanvas = android.graphics.Canvas(refBitmap)
-        val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        // 1. Skeleton Mask: The strict centerline of the character
+        val skeletonBitmap = Bitmap.createBitmap(GRID_SIZE, GRID_SIZE, Bitmap.Config.ARGB_8888)
+        val skeletonCanvas = android.graphics.Canvas(skeletonBitmap)
+        val skeletonPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = android.graphics.Color.BLACK
             textAlign = Paint.Align.CENTER
-            textSize = if (targetChar.length > 1) GRID_SIZE * 0.48f else GRID_SIZE * 0.72f
+            textSize = if (targetChar.length > 1) GRID_SIZE * 0.46f else GRID_SIZE * 0.68f
             isFakeBoldText = true
-            style = Paint.Style.FILL_AND_STROKE
-            strokeWidth = 6f
+            style = Paint.Style.FILL
         }
-        val fontMetrics = textPaint.fontMetrics
-        val centerY = (GRID_SIZE / 2f) - (fontMetrics.ascent + fontMetrics.descent) / 2f
-        refCanvas.drawText(targetChar, GRID_SIZE / 2f, centerY, textPaint)
+        val fm = skeletonPaint.fontMetrics
+        val centerY = (GRID_SIZE / 2f) - (fm.ascent + fm.descent) / 2f
+        skeletonCanvas.drawText(targetChar, GRID_SIZE / 2f, centerY, skeletonPaint)
 
-        val userBitmap = Bitmap.createBitmap(GRID_SIZE, GRID_SIZE, Bitmap.Config.ARGB_8888)
-        val userCanvas = android.graphics.Canvas(userBitmap)
-        val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        // 2. Allowed Corridor Mask: Slightly wider corridor around the character strokes.
+        // Any user ink OUTSIDE this corridor is penalized as Out-Of-Bounds!
+        val corridorBitmap = Bitmap.createBitmap(GRID_SIZE, GRID_SIZE, Bitmap.Config.ARGB_8888)
+        val corridorCanvas = android.graphics.Canvas(corridorBitmap)
+        val corridorPaint = Paint(skeletonPaint).apply {
+            style = Paint.Style.FILL_AND_STROKE
+            strokeWidth = 7f
+        }
+        corridorCanvas.drawText(targetChar, GRID_SIZE / 2f, centerY, corridorPaint)
+
+        // 3. User Thin Ink Mask (for strict precision check) & User Reach Mask (for skeleton coverage)
+        val userThinBitmap = Bitmap.createBitmap(GRID_SIZE, GRID_SIZE, Bitmap.Config.ARGB_8888)
+        val userThinCanvas = android.graphics.Canvas(userThinBitmap)
+        val userThinPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = android.graphics.Color.BLACK
             style = Paint.Style.STROKE
-            strokeWidth = 14f
+            strokeWidth = 7f
             strokeCap = Paint.Cap.ROUND
             strokeJoin = Paint.Join.ROUND
         }
 
+        val userReachBitmap = Bitmap.createBitmap(GRID_SIZE, GRID_SIZE, Bitmap.Config.ARGB_8888)
+        val userReachCanvas = android.graphics.Canvas(userReachBitmap)
+        val userReachPaint = Paint(userThinPaint).apply {
+            strokeWidth = 11f
+        }
+
         for (pts in strokes) {
             if (pts.size == 1) {
-                userCanvas.drawPoint(pts[0].x * scaleX, pts[0].y * scaleY, strokePaint)
+                val px = pts[0].x * scaleX
+                val py = pts[0].y * scaleY
+                userThinCanvas.drawPoint(px, py, userThinPaint)
+                userReachCanvas.drawPoint(px, py, userReachPaint)
             } else if (pts.size > 1) {
                 val p = android.graphics.Path()
                 p.moveTo(pts.first().x * scaleX, pts.first().y * scaleY)
                 for (i in 1 until pts.size) {
                     p.lineTo(pts[i].x * scaleX, pts[i].y * scaleY)
                 }
-                userCanvas.drawPath(p, strokePaint)
+                userThinCanvas.drawPath(p, userThinPaint)
+                userReachCanvas.drawPath(p, userReachPaint)
             }
         }
 
-        var refPixels = 0
-        var coveredRefPixels = 0
-        var userPixels = 0
-        var onTrackUserPixels = 0
+        var skeletonPixels = 0
+        var coveredSkeletonPixels = 0
+        var userThinPixels = 0
+        var insideCorridorUserPixels = 0
+
+        // 4-Quadrant coverage tracking so user cannot pass by only drawing half the letter or an 'X'
+        val quadRef = IntArray(4)
+        val quadCovered = IntArray(4)
+        val half = GRID_SIZE / 2
 
         for (y in 0 until GRID_SIZE) {
             for (x in 0 until GRID_SIZE) {
-                val refOn = android.graphics.Color.alpha(refBitmap.getPixel(x, y)) > 40
-                val userOn = android.graphics.Color.alpha(userBitmap.getPixel(x, y)) > 40
-                if (refOn) {
-                    refPixels++
-                    if (userOn) coveredRefPixels++
+                val qIdx = (if (y >= half) 2 else 0) + (if (x >= half) 1 else 0)
+                val isSkel = android.graphics.Color.alpha(skeletonBitmap.getPixel(x, y)) > 50
+                val isCorr = android.graphics.Color.alpha(corridorBitmap.getPixel(x, y)) > 40
+                val isUserThin = android.graphics.Color.alpha(userThinBitmap.getPixel(x, y)) > 50
+                val isUserReach = android.graphics.Color.alpha(userReachBitmap.getPixel(x, y)) > 40
+
+                if (isSkel) {
+                    skeletonPixels++
+                    quadRef[qIdx]++
+                    if (isUserReach) {
+                        coveredSkeletonPixels++
+                        quadCovered[qIdx]++
+                    }
                 }
-                if (userOn) {
-                    userPixels++
-                    if (refOn) onTrackUserPixels++
+                if (isUserThin) {
+                    userThinPixels++
+                    if (isCorr) {
+                        insideCorridorUserPixels++
+                    }
                 }
             }
         }
 
-        if (refPixels == 0 || userPixels < 25) {
-            return TraceEvaluation(false, "Keep tracing to complete the character shape.")
+        if (skeletonPixels == 0 || userThinPixels < 20) {
+            return TraceEvaluation(12, false, "⚠️ Too short! Trace all strokes of 「$targetChar」.")
         }
 
-        val coverage = coveredRefPixels.toFloat() / refPixels.toFloat()
-        val precision = onTrackUserPixels.toFloat() / userPixels.toFloat()
-        val rawScore = (coverage * 0.62f + precision * 0.38f) * 125f
-        val accuracy = rawScore.roundToInt().coerceIn(10, 99)
-        val passed = accuracy >= 55 && coverage >= 0.32f
+        val coverage = coveredSkeletonPixels.toFloat() / skeletonPixels.toFloat()
+        val precision = insideCorridorUserPixels.toFloat() / userThinPixels.toFloat()
+        val inkRatio = userThinPixels.toFloat() / skeletonPixels.toFloat()
+
+        // Check every quadrant that has significant character ink (>= 12% of the character)
+        var worstQuadCoverage = 1f
+        for (q in 0..3) {
+            if (quadRef[q] >= skeletonPixels * 0.12f) {
+                val qCov = quadCovered[q].toFloat() / quadRef[q].toFloat()
+                if (qCov < worstQuadCoverage) worstQuadCoverage = qCov
+            }
+        }
+
+        // Anti-scribble penalty: if user drew way more ink than the character actually has
+        val overdrawPenalty = if (inkRatio > 1.75f) ((inkRatio - 1.75f) * 0.45f).coerceAtMost(0.5f) else 0f
+
+        val rawAccuracy = ((coverage * 0.48f + precision * 0.52f - overdrawPenalty) * 100f).roundToInt().coerceIn(5, 99)
+
+        // Strict Pass Conditions:
+        // 1. At least 62% of the user's ink must stay INSIDE the character guide corridor (blocks 'X' and random lines!)
+        // 2. At least 58% of the character skeleton must be covered
+        // 3. Every major quadrant of the character must be at least 42% traced
+        // 4. Overall accuracy must be >= 65%
+        val passed = precision >= 0.62f &&
+            coverage >= 0.58f &&
+            worstQuadCoverage >= 0.42f &&
+            inkRatio <= 1.85f &&
+            rawAccuracy >= 65
+
+        val finalDisplayedAccuracy = if (!passed) min(rawAccuracy, 58) else rawAccuracy
 
         val feedback = when {
-            passed -> "✨ Well done! Progress bar increased."
-            coverage < 0.32f -> "⚠️ Complete all strokes of 「$targetChar」"
-            else -> "🔄 Follow the guide shape a little closer"
+            inkRatio > 1.85f ->
+                "❌ $finalDisplayedAccuracy% Accuracy — Too much extra scribbling! Clear and trace cleanly."
+            precision < 0.62f ->
+                "❌ $finalDisplayedAccuracy% Accuracy — Drawn outside guide lines! Follow 「$targetChar」 carefully."
+            coverage < 0.58f || worstQuadCoverage < 0.42f ->
+                "⚠️ $finalDisplayedAccuracy% Accuracy — Incomplete! Trace all parts of 「$targetChar」."
+            finalDisplayedAccuracy >= 85 ->
+                "✨ $finalDisplayedAccuracy% Accuracy — Excellent Trace! (+0.5% Mastery)"
+            else ->
+                "✅ $finalDisplayedAccuracy% Accuracy — Passed! (+0.5% Mastery)"
         }
 
-        return TraceEvaluation(passed, feedback)
+        return TraceEvaluation(finalDisplayedAccuracy, passed, feedback)
     }
 }
 
 // =========================================================================
-// SILENT 0.5% STEP MASTERY STORAGE (1 unit = 0.5%, 200 units = full bar)
+// 0.5% STEP MASTERY STORAGE (Preserves old + new progress)
 // =========================================================================
-private const val MAX_MASTERY_UNITS = 200 // 200 * 0.5% = 100% full bar
+private const val MAX_MASTERY_UNITS = 200 // 200 * 0.5% = 100%
 
 private fun loadKanaMasteryMap(prefs: android.content.SharedPreferences): Map<String, Int> {
-    val raw = prefs.getStringSet("kana_mastery_half_pct_v1", emptySet()).orEmpty()
     val out = mutableMapOf<String, Int>()
+    // Migrate any earlier v1 progress if present
+    val legacy = prefs.getStringSet("kana_mastery_v1", emptySet()).orEmpty()
+    for (entry in legacy) {
+        val parts = entry.split(":")
+        if (parts.size == 2) {
+            parts[1].toIntOrNull()?.let { out[parts[0]] = (it * 20).coerceIn(0, MAX_MASTERY_UNITS) }
+        }
+    }
+    val raw = prefs.getStringSet("kana_mastery_half_pct_v1", emptySet()).orEmpty()
     for (entry in raw) {
         val parts = entry.split(":")
         if (parts.size == 2) {
@@ -218,12 +293,11 @@ private fun saveKanaMasteryMap(prefs: android.content.SharedPreferences, map: Ma
     prefs.edit().putStringSet("kana_mastery_half_pct_v1", set).apply()
 }
 
-/** Returns progress fraction `0f..1f` where each trace or quiz adds `0.005f` (0.5%). */
 private fun charProgressFraction(charStr: String, masteryMap: Map<String, Int>): Float =
     ((masteryMap[charStr] ?: 0).coerceIn(0, MAX_MASTERY_UNITS) / MAX_MASTERY_UNITS.toFloat())
 
 // =========================================================================
-// MAIN KANA & KANJI SCREEN (MATCHING SCREENSHOT LAYOUT)
+// MAIN KANA & KANJI SCREEN
 // =========================================================================
 @Composable
 fun WritingLabScreen(
@@ -250,7 +324,6 @@ fun WritingLabScreen(
     var topTab by remember { mutableIntStateOf(0) } // 0: HIRAGANA, 1: KATAKANA, 2: KANJI
     var activePracticeRow by remember { mutableStateOf<KanaRowFilter?>(null) }
 
-    // If user tapped "LEARN THE CHARACTERS", open the Interactive Row/Overall Quiz & Trace Session
     activePracticeRow?.let { initialRow ->
         val scriptType = if (topTab == 1) KanaType.KATAKANA else KanaType.HIRAGANA
         KanaInteractivePracticeOverlay(
@@ -266,7 +339,6 @@ fun WritingLabScreen(
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        // Top Underline Tab Bar: HIRAGANA | KATAKANA | KANJI (Matches Screenshot!)
         val tabTitles = listOf("HIRAGANA", "KATAKANA", "KANJI")
         TabRow(
             selectedTabIndex = topTab,
@@ -326,7 +398,7 @@ fun WritingLabScreen(
 }
 
 // =========================================================================
-// 5-COLUMN KANA GRID WITH SILENT GOLDEN PROGRESS BARS (MATCHING SCREENSHOT)
+// 5-COLUMN KANA GRID WITH PROMINENT GOLDEN PROGRESS BAR ON EVERY LETTER CARD
 // =========================================================================
 @Composable
 private fun CleanFiveColumnKanaGridScreen(
@@ -358,7 +430,6 @@ private fun CleanFiveColumnKanaGridScreen(
         contentPadding = PaddingValues(vertical = 14.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        // 1. "LEARN THE CHARACTERS" Button (Matches Screenshot!)
         item {
             Duo3DButton(
                 text = if (selectedRowFilter == KanaRowFilter.ALL_OVERALL) "LEARN THE CHARACTERS"
@@ -370,7 +441,6 @@ private fun CleanFiveColumnKanaGridScreen(
             )
         }
 
-        // 2. Row Filter Strip (Overall vs Specific Row: A, K, S, T, N, H, M, Y, R, W)
         item {
             LazyRow(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -393,7 +463,6 @@ private fun CleanFiveColumnKanaGridScreen(
             }
         }
 
-        // 3. 5-Column Kana Cards Grid (With Empty Slots for ya/yu/yo, wa/wo, n)
         if (selectedRowFilter == KanaRowFilter.ALL_OVERALL) {
             items(gojuonRows) { rowSlots ->
                 val nonNullRowChars = rowSlots.filterNotNull()
@@ -449,6 +518,7 @@ private fun CleanFiveColumnKanaGridScreen(
                     rowChars.forEach { k ->
                         KanaProgressTile(
                             kana = k,
+                            masteryUnits = kanaMastery[k.char] ?: 0,
                             progressFraction = charProgressFraction(k.char, kanaMastery),
                             modifier = Modifier.weight(1f),
                             onClick = {
@@ -461,7 +531,6 @@ private fun CleanFiveColumnKanaGridScreen(
                 }
             }
         } else {
-            // Specific Row Selected
             val rowChars = selectedRowFilter.filterKana(scriptType)
             val chunks = rowChars.chunked(5)
             items(chunks) { chunk ->
@@ -479,7 +548,6 @@ private fun CleanFiveColumnKanaGridScreen(
         }
     }
 
-    // Tapping any character card opens the Trace Modal for that row
     if (tracingQueue.isNotEmpty()) {
         val currentKana = tracingQueue[tracingIndex.coerceIn(0, tracingQueue.lastIndex)]
         val progress = charProgressFraction(currentKana.char, kanaMastery)
@@ -520,17 +588,17 @@ private fun FiveColumnKanaRow(
     ) {
         slots.forEach { kana ->
             if (kana == null) {
-                // Blank recessed placeholder block (like in や _ ゆ _ よ and わ _ _ _ を)
                 Box(
                     modifier = Modifier
                         .weight(1f)
-                        .height(86.dp)
+                        .height(94.dp)
                         .clip(RoundedCornerShape(14.dp))
                         .background(emptySlotColor)
                 )
             } else {
                 KanaProgressTile(
                     kana = kana,
+                    masteryUnits = kanaMastery[kana.char] ?: 0,
                     progressFraction = charProgressFraction(kana.char, kanaMastery),
                     modifier = Modifier.weight(1f),
                     onClick = { onTapChar(kana) }
@@ -541,51 +609,59 @@ private fun FiveColumnKanaRow(
 }
 
 /**
- * Individual Kana Tile matching the screenshot:
- * - Character on top
- * - Romaji below
- * - Golden progress bar at the bottom (NO percentage numbers!)
- * - Golden border & golden text when progress is high/mastered!
+ * Individual Kana Tile with ALWAYS-VISIBLE Golden Progress Bar at the bottom (like Screenshot):
+ * - Every single letter card clearly shows the bottom progress bar track and golden indicator.
+ * - Any practiced character (`masteryUnits > 0`) lights up with a Golden Border & Golden Text!
  */
 @Composable
 private fun KanaProgressTile(
     kana: KanaChar,
+    masteryUnits: Int,
     progressFraction: Float,
     modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
     val isDark = LocalDarkTheme.current
-    val isHighlightedGold = progressFraction >= 0.5f
+    val hasStartedMastery = masteryUnits > 0
     val goldColor = Color(0xFFFFC800)
     val goldLip = Color(0xFFD9A600)
 
     val borderCol = when {
-        isHighlightedGold -> goldColor
-        isDark -> DuoColors.DarkBorder
+        hasStartedMastery -> goldColor
+        isDark -> Color(0xFF334654)
         else -> DuoColors.LightBorder
     }
     val lipCol = when {
-        isHighlightedGold -> goldLip
-        isDark -> DuoColors.DarkLip
+        hasStartedMastery -> goldLip
+        isDark -> Color(0xFF202F3A)
         else -> DuoColors.LightLip
     }
-    val cardBg = if (isDark) DuoColors.DarkCard else Color.White
+    val cardBg = if (isDark) Color(0xFF16222A) else Color.White
     val charColor = when {
-        isHighlightedGold -> goldColor
+        hasStartedMastery -> goldColor
         isDark -> Color.White
         else -> Color(0xFF0F172A)
     }
     val romajiColor = when {
-        isHighlightedGold -> goldColor.copy(alpha = 0.85f)
-        else -> MaterialTheme.colorScheme.onSurfaceVariant
+        hasStartedMastery -> goldColor.copy(alpha = 0.88f)
+        isDark -> Color(0xFF94A3B8)
+        else -> Color(0xFF64748B)
     }
-    val trackColor = if (isDark) Color(0xFF263540) else Color(0xFFE2E8F0)
+    val trackColor = if (isDark) Color(0xFF2B3C49) else Color(0xFFDCE4EC)
+
+    // Visible gold bar width: starter nub (18%) when unpracticed, growing smoothly up to 100% as practiced
+    val barWidthFraction = if (hasStartedMastery) {
+        (0.24f + progressFraction * 0.76f).coerceIn(0.24f, 1f)
+    } else {
+        0.16f
+    }
+    val barFillColor = if (hasStartedMastery) goldColor else goldColor.copy(alpha = 0.42f)
 
     val shape = RoundedCornerShape(14.dp)
 
     Box(
         modifier = modifier
-            .height(86.dp)
+            .height(94.dp)
             .clip(shape)
             .background(lipCol)
             .clickable { onClick() }
@@ -597,7 +673,7 @@ private fun KanaProgressTile(
                 .clip(shape)
                 .background(cardBg)
                 .border(1.8.dp, borderCol, shape)
-                .padding(horizontal = 8.dp, vertical = 8.dp),
+                .padding(horizontal = 7.dp, vertical = 8.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.SpaceBetween
         ) {
@@ -614,23 +690,21 @@ private fun KanaProgressTile(
                 color = romajiColor
             )
 
-            // Silent Golden Progress Bar at the bottom of the card (No % numbers!)
+            // Prominent Golden Progress Bar on Every Single Letter Card
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(6.dp)
+                    .height(7.dp)
                     .clip(CircleShape)
                     .background(trackColor)
             ) {
-                if (progressFraction > 0f) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxHeight()
-                            .fillMaxWidth(progressFraction.coerceIn(0.12f, 1f))
-                            .clip(CircleShape)
-                            .background(goldColor)
-                    )
-                }
+                Box(
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .fillMaxWidth(barWidthFraction)
+                        .clip(CircleShape)
+                        .background(barFillColor)
+                )
             }
         }
     }
@@ -656,24 +730,21 @@ private fun KanaInteractivePracticeOverlay(
     var showTraceModal by remember { mutableStateOf(false) }
 
     val activePool = remember(selectedRow, selectedType, round) {
-        if (selectedRow == KanaRowFilter.ALL_OVERALL) {
-            val allForScript = DataRepository.allKana.filter { it.type == selectedType }
-            allForScript.shuffled().sortedBy { kanaMastery[it.char] ?: 0 }.take(15).ifEmpty { DataRepository.allKana }
-        } else {
-            selectedRow.filterKana(selectedType).ifEmpty { DataRepository.allKana }
-        }
+        selectedRow.filterKana(selectedType).ifEmpty { DataRepository.allKana }
     }
 
     val target = remember(activePool, round) { activePool[round % activePool.size] }
     val options = remember(activePool, target, round) {
         val sameRowWrong = activePool.map { it.romaji }.distinct().filter { it != target.romaji }.shuffled().take(2)
-        val extraWrong = DataRepository.allKana.map { it.romaji }.distinct()
+        val basicPool = DataRepository.allKana.filter { it.group == KanaGroup.BASIC }
+        val extraWrong = basicPool.map { it.romaji }.distinct()
             .filter { it != target.romaji && it !in sameRowWrong }
             .shuffled()
             .take(3 - sameRowWrong.size)
         (sameRowWrong + extraWrong + target.romaji).shuffled()
     }
     val correctIndex = options.indexOf(target.romaji)
+    val targetUnits = kanaMastery[target.char] ?: 0
     val targetProgress = charProgressFraction(target.char, kanaMastery)
 
     LaunchedEffect(target) {
@@ -707,7 +778,6 @@ private fun KanaInteractivePracticeOverlay(
                         }
                     }
 
-                    // Switch between Overall and Specific Rows anytime
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         items(KanaRowFilter.entries) { f ->
                             FilterChip(
@@ -735,7 +805,8 @@ private fun KanaInteractivePracticeOverlay(
                 fontWeight = FontWeight.ExtraBold
             )
 
-            // Big Character Card with Silent Golden Progress Bar
+            // Big Character Quiz Card with Clearly Visible Golden Progress Bar
+            val barFillFraction = if (targetUnits > 0) (0.24f + targetProgress * 0.76f).coerceIn(0.24f, 1f) else 0.16f
             Duo3DCard(
                 borderColor = Color(0xFFFFC800),
                 lipColor = Color(0xFFD9A600),
@@ -750,25 +821,27 @@ private fun KanaInteractivePracticeOverlay(
                     Text(
                         text = target.char,
                         fontSize = 76.sp,
-                        fontWeight = FontWeight.ExtraBold
+                        fontWeight = FontWeight.ExtraBold,
+                        color = if (targetUnits > 0) Color(0xFFFFC800) else MaterialTheme.colorScheme.onSurface
                     )
-                    Spacer(Modifier.height(10.dp))
+                    Spacer(Modifier.height(12.dp))
                     Box(
                         modifier = Modifier
-                            .fillMaxWidth(0.55f)
-                            .height(8.dp)
+                            .fillMaxWidth(0.62f)
+                            .height(9.dp)
                             .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                            .background(if (LocalDarkTheme.current) Color(0xFF2B3C49) else Color(0xFFDCE4EC))
                     ) {
-                        if (targetProgress > 0f) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxHeight()
-                                    .fillMaxWidth(targetProgress.coerceIn(0.12f, 1f))
-                                    .clip(CircleShape)
-                                    .background(Color(0xFFFFC800))
-                            )
-                        }
+                        Box(
+                            modifier = Modifier
+                                .fillMaxHeight()
+                                .fillMaxWidth(barFillFraction)
+                                .clip(CircleShape)
+                                .background(
+                                    if (targetUnits > 0) Color(0xFFFFC800)
+                                    else Color(0xFFFFC800).copy(alpha = 0.45f)
+                                )
+                        )
                     }
                 }
             }
@@ -1046,7 +1119,7 @@ private fun KanjiInfoPill(title: String, value: String, bg: Color, modifier: Mod
 }
 
 // =========================================================================
-// CHARACTER TRACE DIALOG WITH SILENT GOLDEN PROGRESS BAR (NO % TEXT)
+// STRICT CHARACTER TRACE DIALOG WITH ACCURACY % CHECK & GOLDEN PROGRESS BAR
 // =========================================================================
 @Composable
 fun CharacterTraceDialog(
@@ -1098,15 +1171,15 @@ fun CharacterTraceDialog(
                         Icon(Icons.Default.VolumeUp, contentDescription = "Audio", tint = DuoColors.MacawBlueDark)
                     }
                 }
-                // Silent Golden Mastery Bar (No % text!)
+                // High-contrast Golden Mastery Progress Bar
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(7.dp)
+                        .height(8.dp)
                         .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                        .background(if (LocalDarkTheme.current) Color(0xFF2B3C49) else Color(0xFFDCE4EC))
                 ) {
-                    val displayedFraction = (progressFraction + if (masteryAwardedForThisChar) 0.05f else 0f).coerceIn(0.08f, 1f)
+                    val displayedFraction = (0.18f + progressFraction * 0.77f + if (masteryAwardedForThisChar) 0.05f else 0f).coerceIn(0.18f, 1f)
                     Box(
                         modifier = Modifier
                             .fillMaxHeight()
@@ -1128,7 +1201,7 @@ fun CharacterTraceDialog(
                             width = 2.5.dp,
                             color = when (evaluation?.isPassed) {
                                 true -> DuoColors.FeatherGreen
-                                false -> DuoColors.FoxOrange
+                                false -> DuoColors.CardinalRed
                                 null -> DuoColors.MacawBlue
                             },
                             shape = RoundedCornerShape(18.dp)
@@ -1140,7 +1213,7 @@ fun CharacterTraceDialog(
                         Text(
                             text = targetChar,
                             fontSize = if (targetChar.length > 1) 110.sp else 172.sp,
-                            color = Color(0xFFCBD5E1).copy(alpha = 0.55f),
+                            color = Color(0xFFCBD5E1).copy(alpha = 0.60f),
                             fontWeight = FontWeight.ExtraBold
                         )
                     }
@@ -1197,14 +1270,14 @@ fun CharacterTraceDialog(
                 Surface(
                     color = when (eval?.isPassed) {
                         true -> DuoColors.FeatherGreenBg
-                        false -> DuoColors.FoxOrangeBg
+                        false -> DuoColors.CardinalRedBg
                         null -> MaterialTheme.colorScheme.surfaceVariant
                     },
                     shape = RoundedCornerShape(10.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(
-                        text = eval?.feedbackText ?: "✍️ Trace over 「$targetChar」 with your finger",
+                        text = eval?.feedbackText ?: "✍️ Trace accurately inside the gray guide (65%+ required)",
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
                         fontSize = 12.sp,
                         fontWeight = FontWeight.ExtraBold,
@@ -1244,7 +1317,7 @@ fun CharacterTraceDialog(
             ) {
                 if (hasNextInQueue) {
                     Duo3DButton(
-                        text = if (passed) "NEXT IN ROW →" else "TRACE TO CONTINUE",
+                        text = if (passed) "NEXT IN ROW →" else "TRACE ACCURATELY (65%+)",
                         enabled = passed,
                         onClick = onNextChar,
                         topColor = DuoColors.FeatherGreen,
@@ -1253,7 +1326,7 @@ fun CharacterTraceDialog(
                     )
                 } else {
                     Duo3DButton(
-                        text = if (passed) "DONE" else "TRACE FIRST",
+                        text = if (passed) "DONE" else "TRACE ACCURATELY (65%+)",
                         enabled = passed,
                         onClick = onDismiss,
                         topColor = DuoColors.FeatherGreen,
