@@ -38,6 +38,7 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.nihongo.master.*
+import kotlin.math.hypot
 import kotlin.math.min
 import kotlin.math.roundToInt
 
@@ -93,19 +94,64 @@ private fun buildGojuonFiveColumnRows(type: KanaType, basicKana: List<KanaChar>)
 }
 
 // =========================================================================
-// UNIFIED CHARACTER GUIDE GEOMETRY + ACCURACY EVALUATOR
-// Uses the exact same native Canvas font rendering for both the on-screen
-// gray guide AND the bitmap evaluator so well-traced characters like 「お」
-// always pass, while random 'X' or out-of-bounds scribbles fail!
+// STRICT STROKE-COUNT + PER-STROKE TRAJECTORY + 16x16 CELL EVALUATOR
+// 1. Enforces official stroke count for every character (e.g. 「あ」 needs 3 strokes).
+// 2. Checks EVERY individual stroke: if any stroke strays outside the gray guide
+//    (like drawing an 'X'), that stroke turns RED and fails immediately!
+// 3. Divides the gray character into a 16x16 grid and requires all segments
+//    (including loops like the bottom of 「あ」) to be traced.
 // =========================================================================
 private data class TraceEvaluation(
     val accuracyPercent: Int,
     val isPassed: Boolean,
+    val invalidStrokeIndices: Set<Int>,
     val feedbackText: String
 )
 
 private object TraceAccuracyEvaluator {
-    private const val GRID_SIZE = 128
+    private const val BITMAP_SIZE = 160
+    private const val CELL_GRID = 16 // 16x16 = 256 fine cells (10x10 px each)
+
+    // Official (minStrokes..maxStrokes) for Hiragana & Katakana
+    private val kanaStrokeRanges: Map<String, IntRange> = mapOf(
+        // 1-stroke Hiragana
+        "く" to 1..1, "し" to 1..1, "つ" to 1..1, "て" to 1..1, "の" to 1..1,
+        "ひ" to 1..1, "へ" to 1..1, "ろ" to 1..1, "る" to 1..1, "ん" to 1..1,
+        // 2-stroke Hiragana
+        "い" to 2..2, "う" to 2..2, "え" to 2..2, "こ" to 2..2, "す" to 2..2,
+        "そ" to 1..2, "ち" to 2..2, "と" to 2..2, "ぬ" to 2..2, "ね" to 2..2,
+        "め" to 2..2, "ゆ" to 2..2, "よ" to 2..2, "ら" to 2..2, "り" to 1..2,
+        "れ" to 2..2, "わ" to 2..2,
+        // 3-stroke Hiragana
+        "あ" to 3..3, "お" to 3..3, "か" to 3..3, "け" to 3..3, "さ" to 2..3,
+        "せ" to 3..3, "に" to 3..3, "は" to 3..3, "ま" to 3..3, "み" to 2..3,
+        "む" to 3..3, "も" to 3..3, "や" to 3..3, "を" to 3..3,
+        // 4-stroke Hiragana
+        "き" to 3..4, "た" to 3..4, "な" to 4..4, "ふ" to 3..4, "ほ" to 4..4,
+        // 1-stroke Katakana
+        "ノ" to 1..1, "フ" to 1..1, "ヘ" to 1..1, "レ" to 1..1,
+        // 2-stroke Katakana
+        "ア" to 2..2, "イ" to 2..2, "カ" to 2..2, "ク" to 2..2, "コ" to 2..2,
+        "ス" to 2..2, "セ" to 2..2, "ソ" to 2..2, "ト" to 2..2, "ナ" to 2..2,
+        "ニ" to 2..2, "ヌ" to 2..2, "ハ" to 2..2, "ヒ" to 2..2, "マ" to 2..2,
+        "ム" to 2..2, "メ" to 2..2, "ヤ" to 2..2, "ユ" to 2..2, "ラ" to 2..2,
+        "リ" to 2..2, "ル" to 2..2, "ワ" to 2..2, "ン" to 2..2,
+        // 3-stroke Katakana
+        "ウ" to 3..3, "エ" to 3..3, "オ" to 3..3, "キ" to 3..3, "ケ" to 3..3,
+        "サ" to 3..3, "シ" to 3..3, "タ" to 3..3, "チ" to 3..3, "ツ" to 3..3,
+        "テ" to 3..3, "モ" to 3..3, "ヨ" to 3..3, "ロ" to 3..3, "ヲ" to 3..3,
+        // 4-stroke Katakana
+        "ネ" to 4..4, "ホ" to 4..4
+    )
+
+    fun expectedStrokeRange(targetChar: String, explicitKanjiStrokes: Int? = null): IntRange {
+        if (explicitKanjiStrokes != null && explicitKanjiStrokes > 0) {
+            return (explicitKanjiStrokes - 1).coerceAtLeast(1)..(explicitKanjiStrokes + 1)
+        }
+        kanaStrokeRanges[targetChar]?.let { return it }
+        // Dakuten / Handakuten / Combo fallback
+        return if (targetChar.length > 1) 3..7 else 2..5
+    }
 
     fun guideTextSizePx(charStr: String, canvasWidthPx: Float): Float =
         if (charStr.length > 1) canvasWidthPx * 0.45f else canvasWidthPx * 0.66f
@@ -125,135 +171,225 @@ private object TraceAccuracyEvaluator {
         nativeCanvas.drawText(charStr, canvasWidthPx / 2f, centerY, paint)
     }
 
+    private fun strokeLengthPx(pts: List<Offset>): Float {
+        var len = 0f
+        for (i in 1 until pts.size) {
+            len += hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y)
+        }
+        return len
+    }
+
     fun evaluate(
         targetChar: String,
         strokes: List<List<Offset>>,
         canvasWidthPx: Float,
-        canvasHeightPx: Float
+        canvasHeightPx: Float,
+        explicitKanjiStrokes: Int? = null
     ): TraceEvaluation {
         if (strokes.isEmpty() || canvasWidthPx <= 10f || canvasHeightPx <= 10f) {
-            return TraceEvaluation(0, false, "✍️ Trace over 「$targetChar」 following the guide.")
+            return TraceEvaluation(0, false, emptySet(), "✍️ Trace over 「$targetChar」 following the gray guide.")
         }
 
-        val scaleX = GRID_SIZE / canvasWidthPx
-        val scaleY = GRID_SIZE / canvasHeightPx
+        val scaleX = BITMAP_SIZE / canvasWidthPx
+        val scaleY = BITMAP_SIZE / canvasHeightPx
+        val strokeRange = expectedStrokeRange(targetChar, explicitKanjiStrokes)
 
-        // 1. Skeleton Mask: exact shape of the guide character
-        val skeletonBitmap = Bitmap.createBitmap(GRID_SIZE, GRID_SIZE, Bitmap.Config.ARGB_8888)
-        val skeletonCanvas = android.graphics.Canvas(skeletonBitmap)
-        val skeletonPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        // 1. Exact Guide Bitmap (No inflated fill—matches the gray guide on screen)
+        val guideBitmap = Bitmap.createBitmap(BITMAP_SIZE, BITMAP_SIZE, Bitmap.Config.ARGB_8888)
+        val guideCanvas = android.graphics.Canvas(guideBitmap)
+        val guidePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = android.graphics.Color.BLACK
             style = Paint.Style.FILL
         }
-        drawCenteredChar(skeletonCanvas, targetChar, GRID_SIZE.toFloat(), GRID_SIZE.toFloat(), skeletonPaint)
+        drawCenteredChar(guideCanvas, targetChar, BITMAP_SIZE.toFloat(), BITMAP_SIZE.toFloat(), guidePaint)
 
-        // 2. Allowed Corridor Mask: comfortable margin around the guide strokes
-        val corridorBitmap = Bitmap.createBitmap(GRID_SIZE, GRID_SIZE, Bitmap.Config.ARGB_8888)
+        // 2. Tight Corridor Bitmap (Only 5px tolerance around the gray guide strokes!)
+        val corridorBitmap = Bitmap.createBitmap(BITMAP_SIZE, BITMAP_SIZE, Bitmap.Config.ARGB_8888)
         val corridorCanvas = android.graphics.Canvas(corridorBitmap)
         val corridorPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = android.graphics.Color.BLACK
             style = Paint.Style.FILL_AND_STROKE
-            strokeWidth = 13f
+            strokeWidth = 5f
             strokeCap = Paint.Cap.ROUND
             strokeJoin = Paint.Join.ROUND
         }
-        drawCenteredChar(corridorCanvas, targetChar, GRID_SIZE.toFloat(), GRID_SIZE.toFloat(), corridorPaint)
+        drawCenteredChar(corridorCanvas, targetChar, BITMAP_SIZE.toFloat(), BITMAP_SIZE.toFloat(), corridorPaint)
 
-        // 3. User Thin Ink (checks if user stayed inside corridor) & User Brush Reach (checks how much of the character was covered)
-        val userThinBitmap = Bitmap.createBitmap(GRID_SIZE, GRID_SIZE, Bitmap.Config.ARGB_8888)
-        val userThinCanvas = android.graphics.Canvas(userThinBitmap)
-        val userThinPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        // 3. Validate EVERY individual stroke's path & length
+        val invalidStrokes = mutableSetOf<Int>()
+        var totalSampledPoints = 0
+        var totalInCorridorPoints = 0
+
+        val minMeaningfulStrokePx = canvasWidthPx * 0.06f // Ignore tiny accidental taps
+
+        strokes.forEachIndexed { strokeIdx, pts ->
+            val lenPx = strokeLengthPx(pts)
+            if (lenPx < minMeaningfulStrokePx) {
+                invalidStrokes.add(strokeIdx)
+                return@forEachIndexed
+            }
+
+            var strokePoints = 0
+            var strokeValidPoints = 0
+
+            // Sample densely along every segment of this stroke
+            for (i in 0 until pts.size) {
+                val p1 = pts[i]
+                val p2 = if (i + 1 < pts.size) pts[i + 1] else p1
+                val dist = hypot(p2.x - p1.x, p2.y - p1.y)
+                val steps = (dist / 4f).toInt().coerceAtLeast(1)
+
+                for (s in 0..steps) {
+                    val t = s.toFloat() / steps.toFloat()
+                    val bx = ((p1.x + (p2.x - p1.x) * t) * scaleX).toInt().coerceIn(0, BITMAP_SIZE - 1)
+                    val by = ((p1.y + (p2.y - p1.y) * t) * scaleY).toInt().coerceIn(0, BITMAP_SIZE - 1)
+
+                    strokePoints++
+                    totalSampledPoints++
+
+                    val inCorridor = android.graphics.Color.alpha(corridorBitmap.getPixel(bx, by)) > 50
+                    if (inCorridor) {
+                        strokeValidPoints++
+                        totalInCorridorPoints++
+                    }
+                }
+            }
+
+            // If less than 72% of THIS single stroke is inside the gray guide corridor,
+            // it means the user drew a line going outside the character (like the 'X' in Screenshot 1)!
+            val strokePrecision = if (strokePoints > 0) strokeValidPoints.toFloat() / strokePoints.toFloat() else 0f
+            if (strokePrecision < 0.72f) {
+                invalidStrokes.add(strokeIdx)
+            }
+        }
+
+        // 4. Render only VALID user strokes onto `userCoverageBitmap` (with realistic 11f width on 160x160)
+        val userCoverageBitmap = Bitmap.createBitmap(BITMAP_SIZE, BITMAP_SIZE, Bitmap.Config.ARGB_8888)
+        val userCoverageCanvas = android.graphics.Canvas(userCoverageBitmap)
+        val coveragePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = android.graphics.Color.BLACK
             style = Paint.Style.STROKE
-            strokeWidth = 7f
+            strokeWidth = 11f
             strokeCap = Paint.Cap.ROUND
             strokeJoin = Paint.Join.ROUND
         }
 
-        val userReachBitmap = Bitmap.createBitmap(GRID_SIZE, GRID_SIZE, Bitmap.Config.ARGB_8888)
-        val userReachCanvas = android.graphics.Canvas(userReachBitmap)
-        val userReachPaint = Paint(userThinPaint).apply {
-            strokeWidth = 17f
-        }
-
-        for (pts in strokes) {
-            if (pts.size == 1) {
-                val px = pts[0].x * scaleX
-                val py = pts[0].y * scaleY
-                userThinCanvas.drawPoint(px, py, userThinPaint)
-                userReachCanvas.drawPoint(px, py, userReachPaint)
-            } else if (pts.size > 1) {
+        strokes.forEachIndexed { idx, pts ->
+            if (idx !in invalidStrokes && pts.size > 1) {
                 val p = android.graphics.Path()
                 p.moveTo(pts.first().x * scaleX, pts.first().y * scaleY)
                 for (i in 1 until pts.size) {
                     p.lineTo(pts[i].x * scaleX, pts[i].y * scaleY)
                 }
-                userThinCanvas.drawPath(p, userThinPaint)
-                userReachCanvas.drawPath(p, userReachPaint)
+                userCoverageCanvas.drawPath(p, coveragePaint)
             }
         }
 
-        var skeletonPixels = 0
-        var coveredSkeletonPixels = 0
-        var userThinPixels = 0
-        var insideCorridorUserPixels = 0
+        // 5. Fine 16x16 Cell Coverage Check:
+        // Every 10x10px cell of the gray guide that has character pixels MUST be visited!
+        val cellSize = BITMAP_SIZE / CELL_GRID
+        var requiredCells = 0
+        var coveredCells = 0
+        var totalGuidePixels = 0
+        var coveredGuidePixels = 0
 
-        for (y in 0 until GRID_SIZE) {
-            for (x in 0 until GRID_SIZE) {
-                val isSkel = android.graphics.Color.alpha(skeletonBitmap.getPixel(x, y)) > 50
-                val isCorr = android.graphics.Color.alpha(corridorBitmap.getPixel(x, y)) > 35
-                val isUserThin = android.graphics.Color.alpha(userThinBitmap.getPixel(x, y)) > 50
-                val isUserReach = android.graphics.Color.alpha(userReachBitmap.getPixel(x, y)) > 35
+        for (cy in 0 until CELL_GRID) {
+            for (cx in 0 until CELL_GRID) {
+                var cellGuidePx = 0
+                var cellCoveredPx = 0
+                val startY = cy * cellSize
+                val startX = cx * cellSize
 
-                if (isSkel) {
-                    skeletonPixels++
-                    if (isUserReach) coveredSkeletonPixels++
+                for (y in startY until (startY + cellSize)) {
+                    for (x in startX until (startX + cellSize)) {
+                        val isGuide = android.graphics.Color.alpha(guideBitmap.getPixel(x, y)) > 60
+                        if (isGuide) {
+                            cellGuidePx++
+                            totalGuidePixels++
+                            val isCovered = android.graphics.Color.alpha(userCoverageBitmap.getPixel(x, y)) > 50
+                            if (isCovered) {
+                                cellCoveredPx++
+                                coveredGuidePixels++
+                            }
+                        }
+                    }
                 }
-                if (isUserThin) {
-                    userThinPixels++
-                    if (isCorr) insideCorridorUserPixels++
+
+                // If this 10x10 cell contains a real part of the gray guide character
+                if (cellGuidePx >= 8) {
+                    requiredCells++
+                    if (cellCoveredPx >= cellGuidePx * 0.40f) {
+                        coveredCells++
+                    }
                 }
             }
         }
 
-        if (skeletonPixels == 0 || userThinPixels < 18) {
-            return TraceEvaluation(15, false, "⚠️ Keep tracing! Complete the strokes of 「$targetChar」.")
+        val cellCoverage = if (requiredCells > 0) coveredCells.toFloat() / requiredCells.toFloat() else 0f
+        val pixelCoverage = if (totalGuidePixels > 0) coveredGuidePixels.toFloat() / totalGuidePixels.toFloat() else 0f
+        val overallPrecision = if (totalSampledPoints > 0) totalInCorridorPoints.toFloat() / totalSampledPoints.toFloat() else 0f
+
+        val rawAccuracy = ((cellCoverage * 0.50f + overallPrecision * 0.50f) * 100f).roundToInt().coerceIn(5, 99)
+
+        // Check 1: Did any stroke go outside the gray guide?
+        if (invalidStrokes.isNotEmpty()) {
+            val badNum = invalidStrokes.first() + 1
+            val capped = min(rawAccuracy, 48)
+            return TraceEvaluation(
+                accuracyPercent = capped,
+                isPassed = false,
+                invalidStrokeIndices = invalidStrokes,
+                feedbackText = "❌ $capped% Accuracy — Stroke #$badNum (Red) went outside the gray guide! Tap Undo or Clear."
+            )
         }
 
-        val coverage = coveredSkeletonPixels.toFloat() / skeletonPixels.toFloat()
-        val precision = insideCorridorUserPixels.toFloat() / userThinPixels.toFloat()
-        val inkRatio = userThinPixels.toFloat() / skeletonPixels.toFloat()
-
-        // Pass Criteria:
-        // - At least 56% of user's drawn stroke stays inside the character corridor (rejects 'X' & random lines)
-        // - At least 48% of the character skeleton is covered by the user's trace
-        // - Ink ratio <= 2.1f (rejects scribbling over the whole canvas)
-        val passed = precision >= 0.56f && coverage >= 0.48f && inkRatio <= 2.1f
-
-        val rawScore = ((coverage * 0.48f + precision * 0.52f) * 108f).roundToInt().coerceIn(10, 99)
-        val displayAccuracy = if (passed) rawScore.coerceAtLeast(68) else min(rawScore, 60)
-
-        val feedback = when {
-            inkRatio > 2.1f ->
-                "❌ $displayAccuracy% Accuracy — Too much extra scribbling! Clear and trace cleanly."
-            precision < 0.56f ->
-                "❌ $displayAccuracy% Accuracy — Drawn outside guide lines! Follow 「$targetChar」."
-            coverage < 0.48f ->
-                "⚠️ $displayAccuracy% Accuracy — Almost there! Trace the remaining stroke of 「$targetChar」."
-            displayAccuracy >= 85 ->
-                "✨ $displayAccuracy% Accuracy — Great Trace! Progress bar increased."
-            else ->
-                "✅ $displayAccuracy% Accuracy — Passed! Progress bar increased."
+        // Check 2: Did the user draw fewer strokes than the character has (like 2/3 strokes on 「あ」)?
+        if (strokes.size < strokeRange.first) {
+            val capped = min(rawAccuracy, 58)
+            return TraceEvaluation(
+                accuracyPercent = capped,
+                isPassed = false,
+                invalidStrokeIndices = emptySet(),
+                feedbackText = "⏳ Strokes: ${strokes.size} / ${strokeRange.first} — Keep tracing the remaining part of 「$targetChar」!"
+            )
         }
 
-        return TraceEvaluation(displayAccuracy, passed, feedback)
+        // Check 3: Did the user draw too many strokes?
+        if (strokes.size > strokeRange.last + 1) {
+            val capped = min(rawAccuracy, 52)
+            return TraceEvaluation(
+                accuracyPercent = capped,
+                isPassed = false,
+                invalidStrokeIndices = emptySet(),
+                feedbackText = "⚠️ Too many strokes (${strokes.size})! 「$targetChar」 has ${strokeRange.first} strokes. Tap Clear."
+            )
+        }
+
+        // Check 4: Are all parts/loops of the gray guide covered (Requires >= 75% of all guide cells & >= 70% pixels)?
+        if (cellCoverage < 0.75f || pixelCoverage < 0.70f) {
+            val capped = min(rawAccuracy, 62)
+            return TraceEvaluation(
+                accuracyPercent = capped,
+                isPassed = false,
+                invalidStrokeIndices = emptySet(),
+                feedbackText = "⚠️ $capped% Accuracy — Incomplete! Trace the uncovered gray part of 「$targetChar」."
+            )
+        }
+
+        val finalPassScore = rawAccuracy.coerceIn(72, 99)
+        return TraceEvaluation(
+            accuracyPercent = finalPassScore,
+            isPassed = true,
+            invalidStrokeIndices = emptySet(),
+            feedbackText = "✅ $finalPassScore% Accuracy — Passed! Progress bar increased."
+        )
     }
 }
 
 // =========================================================================
 // 0.5% STEP MASTERY STORAGE (1 unit = 0.5%, 200 units = 100% Full Gold Card)
 // =========================================================================
-private const val MAX_MASTERY_UNITS = 200 // 200 * 0.5% = 100%
+private const val MAX_MASTERY_UNITS = 200
 
 private fun loadKanaMasteryMap(prefs: android.content.SharedPreferences): Map<String, Int> {
     val raw = prefs.getStringSet("kana_mastery_half_pct_v2", emptySet()).orEmpty()
@@ -589,13 +725,6 @@ private fun FiveColumnKanaRow(
     }
 }
 
-/**
- * Individual Kana Tile (Exact behavior from `1794363990432.jpeg`):
- * - Uses a `Box` layout so the bottom progress bar is NEVER pushed out or clipped by font padding.
- * - While `masteryUnits < MAX_MASTERY_UNITS`, the card border is normal dark/gray and the character text is white/dark,
- *   while ONLY the golden progress bar at the bottom fills up!
- * - Only when the progress bar reaches 100% (`masteryUnits >= MAX_MASTERY_UNITS`) does the card border & character turn Golden!
- */
 @Composable
 private fun KanaProgressTile(
     kana: KanaChar,
@@ -632,8 +761,6 @@ private fun KanaProgressTile(
     }
     val trackColor = if (isDark) Color(0xFF2C3E4C) else Color(0xFFDCE4EC)
 
-    // Visible golden fill inside the bottom progress bar:
-    // 0f when untouched; starts at 0.14f on first practice and grows smoothly to 1.0f
     val fillFraction = when {
         masteryUnits <= 0 -> 0f
         isFullyMastered -> 1f
@@ -658,7 +785,6 @@ private fun KanaProgressTile(
                 .border(1.8.dp, borderCol, shape)
                 .padding(horizontal = 8.dp, vertical = 7.dp)
         ) {
-            // Top & Middle: Kana Character + Romaji
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -682,7 +808,6 @@ private fun KanaProgressTile(
                 )
             }
 
-            // Bottom: Pinned Progress Bar Track + Golden Fill (Guaranteed visible on every card!)
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -1086,6 +1211,7 @@ private fun KanjiCanvasLabView(
             masteryUnits = 20,
             progressFraction = 0.25f,
             targetChar = currentKanji.kanji,
+            explicitKanjiStrokes = currentKanji.strokeCount,
             hasNextInQueue = idxInPool + 1 < kanjiPool.size,
             onSpeak = { onSpeak(currentKanji.kanji, ListeningSpeed.NATURAL) },
             onDismiss = { showCanvas = false },
@@ -1119,7 +1245,7 @@ private fun KanjiInfoPill(title: String, value: String, bg: Color, modifier: Mod
 }
 
 // =========================================================================
-// UNIFIED CHARACTER TRACE DIALOG (EXACT PIXEL ALIGNMENT BETWEEN GUIDE & EVALUATOR)
+// STRICT CHARACTER TRACE DIALOG (WITH STROKE COUNTER & RED OUT-OF-BOUNDS STROKES)
 // =========================================================================
 @Composable
 fun CharacterTraceDialog(
@@ -1127,6 +1253,7 @@ fun CharacterTraceDialog(
     masteryUnits: Int = 0,
     progressFraction: Float,
     targetChar: String,
+    explicitKanjiStrokes: Int? = null,
     hasNextInQueue: Boolean = false,
     onSpeak: () -> Unit,
     onDismiss: () -> Unit,
@@ -1139,6 +1266,10 @@ fun CharacterTraceDialog(
     var canvasSize by remember { mutableStateOf(IntSize.Zero) }
     var evaluation by remember(targetChar) { mutableStateOf<TraceEvaluation?>(null) }
     var masteryAwardedForThisChar by remember(targetChar) { mutableStateOf(false) }
+
+    val expectedRange = remember(targetChar, explicitKanjiStrokes) {
+        TraceAccuracyEvaluator.expectedStrokeRange(targetChar, explicitKanjiStrokes)
+    }
 
     val guidePaint = remember {
         Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -1156,7 +1287,8 @@ fun CharacterTraceDialog(
             targetChar = targetChar,
             strokes = strokes.toList(),
             canvasWidthPx = canvasSize.width.toFloat(),
-            canvasHeightPx = canvasSize.height.toFloat()
+            canvasHeightPx = canvasSize.height.toFloat(),
+            explicitKanjiStrokes = explicitKanjiStrokes
         )
         evaluation = res
         if (res.isPassed && !masteryAwardedForThisChar) {
@@ -1174,12 +1306,19 @@ fun CharacterTraceDialog(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(title, fontWeight = FontWeight.ExtraBold, fontSize = 16.sp, modifier = Modifier.weight(1f))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(title, fontWeight = FontWeight.ExtraBold, fontSize = 16.sp)
+                        Text(
+                            text = "Strokes drawn: ${strokes.size} / ${expectedRange.first}",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                     IconButton(onClick = onSpeak) {
                         Icon(Icons.Default.VolumeUp, contentDescription = "Audio", tint = DuoColors.MacawBlueDark)
                     }
                 }
-                // Progress Bar inside Trace Modal
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -1244,7 +1383,6 @@ fun CharacterTraceDialog(
                         drawLine(Color(0xFFE2E8F0), Offset(size.width / 2, 0f), Offset(size.width / 2, size.height), strokeWidth = 2f)
                         drawLine(Color(0xFFE2E8F0), Offset(0f, size.height / 2), Offset(size.width, size.height / 2), strokeWidth = 2f)
 
-                        // Draw the gray guide character using the EXACT same native Paint geometry as TraceAccuracyEvaluator!
                         if (showGuide) {
                             TraceAccuracyEvaluator.drawCenteredChar(
                                 nativeCanvas = drawContext.canvas.nativeCanvas,
@@ -1255,25 +1393,41 @@ fun CharacterTraceDialog(
                             )
                         }
 
-                        val all = strokes.toList() + listOf(currentStroke)
-                        all.forEachIndexed { idx, pts ->
+                        val invalidSet = evaluation?.invalidStrokeIndices.orEmpty()
+                        strokes.forEachIndexed { idx, pts ->
                             if (pts.size > 1) {
                                 val path = Path().apply {
                                     moveTo(pts.first().x, pts.first().y)
                                     pts.drop(1).forEach { lineTo(it.x, it.y) }
                                 }
-                                val strokeColor = when (idx % 4) {
-                                    0 -> DuoColors.MacawBlueDark
-                                    1 -> DuoColors.FeatherGreenDark
-                                    2 -> DuoColors.LilacPurpleDark
-                                    else -> DuoColors.FoxOrangeDark
+                                // Out-of-bounds strokes turn bright RED so the user immediately sees what went wrong!
+                                val strokeColor = if (idx in invalidSet) {
+                                    DuoColors.CardinalRed
+                                } else {
+                                    when (idx % 3) {
+                                        0 -> DuoColors.MacawBlueDark
+                                        1 -> DuoColors.FeatherGreenDark
+                                        else -> DuoColors.LilacPurpleDark
+                                    }
                                 }
                                 drawPath(
                                     path = path,
                                     color = strokeColor,
-                                    style = Stroke(width = 22f, cap = StrokeCap.Round, join = StrokeJoin.Round)
+                                    style = Stroke(width = 20f, cap = StrokeCap.Round, join = StrokeJoin.Round)
                                 )
                             }
+                        }
+
+                        if (currentStroke.size > 1) {
+                            val activePath = Path().apply {
+                                moveTo(currentStroke.first().x, currentStroke.first().y)
+                                currentStroke.drop(1).forEach { lineTo(it.x, it.y) }
+                            }
+                            drawPath(
+                                path = activePath,
+                                color = DuoColors.MacawBlue,
+                                style = Stroke(width = 20f, cap = StrokeCap.Round, join = StrokeJoin.Round)
+                            )
                         }
                     }
                 }
@@ -1291,7 +1445,7 @@ fun CharacterTraceDialog(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(
-                        text = eval?.feedbackText ?: "✍️ Trace over the gray guide with your finger",
+                        text = eval?.feedbackText ?: "✍️ Trace all ${expectedRange.first} strokes inside the gray guide",
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
                         fontSize = 12.sp,
                         fontWeight = FontWeight.ExtraBold,
@@ -1331,7 +1485,7 @@ fun CharacterTraceDialog(
             ) {
                 if (hasNextInQueue) {
                     Duo3DButton(
-                        text = if (passed) "NEXT IN ROW →" else "TRACE TO CONTINUE",
+                        text = if (passed) "NEXT IN ROW →" else "COMPLETE ALL STROKES",
                         enabled = passed,
                         onClick = onNextChar,
                         topColor = DuoColors.FeatherGreen,
@@ -1340,7 +1494,7 @@ fun CharacterTraceDialog(
                     )
                 } else {
                     Duo3DButton(
-                        text = if (passed) "DONE" else "TRACE FIRST",
+                        text = if (passed) "DONE" else "COMPLETE ALL STROKES",
                         enabled = passed,
                         onClick = onDismiss,
                         topColor = DuoColors.FeatherGreen,
